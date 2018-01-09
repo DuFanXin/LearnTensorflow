@@ -28,7 +28,7 @@ IMG_CHANNEL = Constant_Variables.IMG_CHANNEL
 
 def main():
 	train_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'train_set.tfrecords'))  # 要生成的文件
-	development_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'train_set.tfrecords'))  # 要生成的文件
+	development_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'development_set.tfrecords'))  # 要生成的文件
 	test_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'test_set.tfrecords'))  # 要生成的文件
 
 	files_path = glob.glob(os.path.join(FLAGS.data_dir, '*.jpg'))
@@ -53,33 +53,33 @@ def main():
 			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
 		}))  # example对象对label和image数据进行封装
 		train_set_writer.write(example.SerializeToString())  # 序列化为字符串
-		print(index % 4)
+		# print(index % 4)
 	train_set_writer.close()
 	print('Done train_set write')
 
 	for index, image_path in enumerate(development_set_path):
 		img = Image.open(image_path)
-		img = img.resize((128, 128))
+		img = img.resize((IMG_HEIGHT, IMG_WIDE))
 		img_raw = img.tobytes()  # 将图片转化为二进制格式
 		example = tf.train.Example(features=tf.train.Features(feature={
 			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[index % 4])),
 			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
 		}))  # example对象对label和image数据进行封装
-		train_set_writer.write(example.SerializeToString())  # 序列化为字符串
-		print(index % 4)
+		development_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		# print(index % 4)
 	development_set_writer.close()
 	print('Done development_set write')
 
 	for index, image_path in enumerate(test_set_path):
 		img = Image.open(image_path)
-		img = img.resize((128, 128))
+		img = img.resize((IMG_HEIGHT, IMG_WIDE))
 		img_raw = img.tobytes()  # 将图片转化为二进制格式
 		example = tf.train.Example(features=tf.train.Features(feature={
 			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[index % 4])),
 			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
 		}))  # example对象对label和image数据进行封装
 		test_set_writer.write(example.SerializeToString())  # 序列化为字符串
-		print(index % 4)
+		# print(index % 4)
 	test_set_writer.close()
 	print('Done test_set write')
 
@@ -142,7 +142,7 @@ def check_proprocess():
 		# print(sess.run(a))
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
-		for i in range(Epoch_num):
+		for i in range(5):
 			example, lablel = sess.run([train_images, train_labels])  # 在会话中取出image和label
 			# DO check
 			# image = Image.fromarray(example[2], 'RGB')  # 这里Image是之前提到的
@@ -156,7 +156,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	# 输入地址
 	parser.add_argument(
-		'--data_dir', type=str, default='/home/dufanxin/PycharmProjects/image',
+		'--data_dir', type=str, default='/home/dufanxin/PycharmProjects/image2',
 		help='input data path')
 
 	# 模型保存地址
@@ -170,3 +170,4 @@ if __name__ == '__main__':
 		help='output data path')
 	FLAGS, _ = parser.parse_known_args()
 	main()
+	check_proprocess()

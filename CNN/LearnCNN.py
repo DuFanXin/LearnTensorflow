@@ -66,9 +66,9 @@ def main():
 	# train
 	train_file_path = os.path.join(FLAGS.data_dir, "train_set.tfrecords")
 	# development
-	development_file_path = os.path.join(FLAGS.data_dir, "development_set.tfrecords")
-	# test
-	test_file_path = os.path.join(FLAGS.data_dir, "test_set.tfrecords")
+	# development_file_path = os.path.join(FLAGS.data_dir, "development_set.tfrecords")
+	# # test
+	# test_file_path = os.path.join(FLAGS.data_dir, "test_set.tfrecords")
 	# check point
 	ckpt_path = os.path.join(FLAGS.model_dir, "model.ckpt")
 
@@ -76,13 +76,13 @@ def main():
 		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=EPOCH_NUM)
 	train_images, train_labels = read_image_batch(train_image_filename_queue, 4)
 
-	development_image_filename_queue = tf.train.string_input_producer(
-		tf.train.match_filenames_once(development_file_path))
-	development_images, development_labels = read_image_batch(development_image_filename_queue, 1)
-
-	test_image_filename_queue = tf.train.string_input_producer(
-			tf.train.match_filenames_once(test_file_path))
-	test_images, test_labels = read_image_batch(test_image_filename_queue, 1)
+	# development_image_filename_queue = tf.train.string_input_producer(
+	# 	tf.train.match_filenames_once(development_file_path))
+	# development_images, development_labels = read_image_batch(development_image_filename_queue, 1)
+	#
+	# test_image_filename_queue = tf.train.string_input_producer(
+	# 		tf.train.match_filenames_once(test_file_path))
+	# test_images, test_labels = read_image_batch(test_image_filename_queue, 1)
 
 	# layer1
 	input_image = tf.placeholder(dtype=tf.float32, shape=[4, 128, 128, 3])
@@ -147,7 +147,7 @@ def main():
 	with tf.Session() as sess:  # 开始一个会话
 		sess.run(tf.global_variables_initializer())
 		sess.run(tf.local_variables_initializer())
-		tf.summary.FileWriter(FLAGS.data_dir, sess.graph)
+		# tf.summary.FileWriter(FLAGS.data_dir, sess.graph)
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
 		try:
@@ -173,7 +173,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	# 输入地址
 	parser.add_argument(
-		'--data_dir', type=str, default='/home/dufanxin/PycharmProjects/image',
+		'--data_dir', type=str, default='/home/dufanxin/PycharmProjects/image/dog',
 		help='input data path')
 
 	# 模型保存地址
