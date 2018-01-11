@@ -21,7 +21,7 @@ from PIL import Image  # 注意Image,后面会用到
 import glob
 
 IMG_WIDE, IMG_HEIGHT, IMG_CHANNEL = 227, 227, 3
-EPOCH_NUM = 1
+EPOCH_NUM = 50
 
 
 def change_prefix(files):
@@ -78,15 +78,67 @@ def write_img_to_tfrecords():
 	development_set_path = dog_image_path[dog_train_set_size:dog_train_set_size + dog_development_set_size]
 	test_set_path = dog_image_path[dog_train_set_size + dog_development_set_size:]
 
-	print('train files num ' + str(len(train_set_path)))
-	print('train files num ' + str(len(development_set_path)))
-	print('test files num ' + str(len(test_set_path)))
+	# print('train files num ' + str(len(train_set_path)))
+	# print('train files num ' + str(len(development_set_path)))
+	# print('test files num ' + str(len(test_set_path)))
 	for index, image_path in enumerate(train_set_path):
 		img = Image.open(image_path)
 		img = img.resize((IMG_WIDE, IMG_HEIGHT))
 		img_raw = img.tobytes()  # 将图片转化为二进制格式
 		example = tf.train.Example(features=tf.train.Features(feature={
 			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label['dog']])),
+			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
+		}))  # example对象对label和image数据进行封装
+		train_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		# print(index)
+	# train_set_writer.close()
+	# print('Done train_set write')
+
+	for index, image_path in enumerate(development_set_path):
+		img = Image.open(image_path)
+		img = img.resize((IMG_WIDE, IMG_HEIGHT))
+		img_raw = img.tobytes()  # 将图片转化为二进制格式
+		example = tf.train.Example(features=tf.train.Features(feature={
+			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label['dog']])),
+			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
+		}))  # example对象对label和image数据进行封装
+		development_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		# print(index)
+	# development_set_writer.close()
+	# print('Done development_set write')
+
+	for index, image_path in enumerate(test_set_path):
+		img = Image.open(image_path)
+		img = img.resize((IMG_WIDE, IMG_HEIGHT))
+		img_raw = img.tobytes()  # 将图片转化为二进制格式
+		example = tf.train.Example(features=tf.train.Features(feature={
+			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label['dog']])),
+			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
+		}))  # example对象对label和image数据进行封装
+		test_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		# print(index)
+	# test_set_writer.close()
+	# print('Done test_set write')
+
+	'''fish images'''
+	fish_length = len(fish_image_path)
+	fish_development_set_size, fish_test_set_size = \
+		fish_length >= 100 and (fish_length // 100, fish_length // 100) or (1, 1)
+	fish_train_set_size = fish_length - fish_development_set_size - fish_test_set_size
+	# train_set_size = development_set_size = test_set_size = 4
+	train_set_path = fish_image_path[:fish_train_set_size]
+	development_set_path = fish_image_path[fish_train_set_size:fish_train_set_size + fish_development_set_size]
+	test_set_path = fish_image_path[fish_train_set_size + fish_development_set_size:]
+
+	print('train files num ' + str(dog_train_set_size + fish_train_set_size))
+	print('development files num ' + str(dog_development_set_size + fish_development_set_size))
+	print('test files num ' + str(dog_test_set_size + fish_test_set_size))
+	for index, image_path in enumerate(train_set_path):
+		img = Image.open(image_path)
+		img = img.resize((IMG_WIDE, IMG_HEIGHT))
+		img_raw = img.tobytes()  # 将图片转化为二进制格式
+		example = tf.train.Example(features=tf.train.Features(feature={
+			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label['fish']])),
 			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
 		}))  # example对象对label和image数据进行封装
 		train_set_writer.write(example.SerializeToString())  # 序列化为字符串
@@ -99,10 +151,10 @@ def write_img_to_tfrecords():
 		img = img.resize((227, 227))
 		img_raw = img.tobytes()  # 将图片转化为二进制格式
 		example = tf.train.Example(features=tf.train.Features(feature={
-			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[index])),
+			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label['fish']])),
 			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
 		}))  # example对象对label和image数据进行封装
-		development_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		train_set_writer.write(example.SerializeToString())  # 序列化为字符串
 		# print(index)
 	development_set_writer.close()
 	print('Done development_set write')
@@ -112,65 +164,13 @@ def write_img_to_tfrecords():
 		img = img.resize((227, 227))
 		img_raw = img.tobytes()  # 将图片转化为二进制格式
 		example = tf.train.Example(features=tf.train.Features(feature={
-			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[index])),
+			"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label['fish']])),
 			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
 		}))  # example对象对label和image数据进行封装
 		test_set_writer.write(example.SerializeToString())  # 序列化为字符串
 		# print(index)
 	test_set_writer.close()
 	print('Done test_set write')
-
-	# '''fish images'''
-	# fish_length = len(fish_image_path)
-	# fish_development_set_size, fish_test_set_size = \
-	# 	fish_length >= 100 and (fish_length // 100, fish_length // 100) or (1, 1)
-	# fish_train_set_size = fish_length - fish_development_set_size - fish_test_set_size
-	# # train_set_size = development_set_size = test_set_size = 4
-	# train_set_path = fish_image_path[:fish_train_set_size]
-	# development_set_path = fish_image_path[fish_train_set_size:fish_train_set_size + fish_development_set_size]
-	# test_set_path = fish_image_path[fish_train_set_size + fish_development_set_size:]
-	#
-	# print('train files num ' + str(dog_train_set_size + fish_train_set_size))
-	# print('development files num ' + str(dog_development_set_size + fish_development_set_size))
-	# print('test files num ' + str(dog_test_set_size + fish_test_set_size))
-	# for index, image_path in enumerate(train_set_path):
-	# 	img = Image.open(image_path)
-	# 	img = img.resize((IMG_WIDE, IMG_HEIGHT))
-	# 	img_raw = img.tobytes()  # 将图片转化为二进制格式
-	# 	example = tf.train.Example(features=tf.train.Features(feature={
-	# 		"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label['fish']])),
-	# 		'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
-	# 	}))  # example对象对label和image数据进行封装
-	# 	train_set_writer.write(example.SerializeToString())  # 序列化为字符串
-	# 	# print(index)
-	# train_set_writer.close()
-	# print('Done train_set write')
-	#
-	# for index, image_path in enumerate(development_set_path):
-	# 	img = Image.open(image_path)
-	# 	img = img.resize((227, 227))
-	# 	img_raw = img.tobytes()  # 将图片转化为二进制格式
-	# 	example = tf.train.Example(features=tf.train.Features(feature={
-	# 		"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[index])),
-	# 		'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
-	# 	}))  # example对象对label和image数据进行封装
-	# 	train_set_writer.write(example.SerializeToString())  # 序列化为字符串
-	# 	# print(index)
-	# development_set_writer.close()
-	# print('Done development_set write')
-	#
-	# for index, image_path in enumerate(test_set_path):
-	# 	img = Image.open(image_path)
-	# 	img = img.resize((227, 227))
-	# 	img_raw = img.tobytes()  # 将图片转化为二进制格式
-	# 	example = tf.train.Example(features=tf.train.Features(feature={
-	# 		"label": tf.train.Feature(int64_list=tf.train.Int64List(value=[index])),
-	# 		'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
-	# 	}))  # example对象对label和image数据进行封装
-	# 	test_set_writer.write(example.SerializeToString())  # 序列化为字符串
-	# 	# print(index)
-	# test_set_writer.close()
-	# print('Done test_set write')
 
 
 def read_image(file_queue):
@@ -200,10 +200,10 @@ def read_image_batch(file_queue, batch_size):
 	img, label = read_image(file_queue)
 	min_after_dequeue = 2 * batch_size
 	capacity = 3 * batch_size + min_after_dequeue
-	image_batch, label_batch = tf.train.batch([img, label], batch_size=batch_size, capacity=capacity, num_threads=10)
-	# image_batch, label_batch = tf.train.shuffle_batch(
-	# 	tensors=[img, label], batch_size=batch_size,
-	# 	capacity=capacity, min_after_dequeue=min_after_dequeue)
+	# image_batch, label_batch = tf.train.batch([img, label], batch_size=batch_size, capacity=capacity, num_threads=10)
+	image_batch, label_batch = tf.train.shuffle_batch(
+		tensors=[img, label], batch_size=batch_size,
+		capacity=capacity, min_after_dequeue=min_after_dequeue)
 	# one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=2))
 	one_hot_labels = tf.reshape(label_batch, [batch_size, 1])
 	return image_batch, one_hot_labels
@@ -223,13 +223,13 @@ def main():
 		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=EPOCH_NUM, shuffle=True)
 	train_images, train_labels = read_image_batch(train_image_filename_queue, 80)
 
-	# development_image_filename_queue = tf.train.string_input_producer(
-	# 	tf.train.match_filenames_once(development_file_path), num_epochs=EPOCH_NUM)
-	# development_images, development_labels = read_image_batch(development_image_filename_queue, 1)
-	#
-	# test_image_filename_queue = tf.train.string_input_producer(
-	# 		tf.train.match_filenames_once(test_file_path), num_epochs=EPOCH_NUM)
-	# test_images, test_labels = read_image_batch(test_image_filename_queue, 1)
+	development_image_filename_queue = tf.train.string_input_producer(
+		tf.train.match_filenames_once(development_file_path), num_epochs=EPOCH_NUM, shuffle=True)
+	development_images, development_labels = read_image_batch(development_image_filename_queue, 5)
+
+	test_image_filename_queue = tf.train.string_input_producer(
+			tf.train.match_filenames_once(test_file_path), num_epochs=EPOCH_NUM, shuffle=True)
+	test_images, test_labels = read_image_batch(test_image_filename_queue, 5)
 
 	# layer1
 	input_image = tf.placeholder(dtype=tf.float32, shape=[4, 128, 128, 3])
@@ -241,24 +241,26 @@ def main():
 		# tf.summary.FileWriter(FLAGS.data_dir, sess.graph)
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
-		example, label = sess.run([train_images, train_labels])
 		# example, label = sess.run([train_images, train_labels])
-		print(label)
-		# try:
-		# 	epoch = 1
-		# 	while not coord.should_stop():
-		# 		# Run training steps or whatever
-		# 		print('epoch' + str(epoch))
-		# 		epoch += 1
-		# 		for i in range(BATCH_NUM):
-		# 			example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
-		# 			print(label)
-		# except tf.errors.OutOfRangeError:
-		# 	print('Done training -- epoch limit reached')
-		# finally:
-		# 	# When done, ask the threads to stop.
-		# 	coord.request_stop()
-		coord.request_stop()
+		# example, label = sess.run([train_images, train_labels])
+		# print(label)
+		try:
+			epoch = 1
+			while not coord.should_stop():
+				# Run training steps or whatever
+				print('epoch' + str(epoch))
+				# example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
+				# print(label)
+				for i in range(5):
+					example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
+					print(label)
+				epoch += 1
+		except tf.errors.OutOfRangeError:
+			print('Done -- epoch limit reached')
+		finally:
+			# When done, ask the threads to stop.
+			coord.request_stop()
+		# coord.request_stop()
 		coord.join(threads)
 	print("Done compute")
 
@@ -267,7 +269,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	# 输入地址
 	parser.add_argument(
-		'--data_dir', type=str, default='/home/dufanxin/PycharmProjects/image/dog',
+		'--data_dir', type=str, default='/home/dufanxin/PycharmProjects/image',
 		help='input data path')
 
 	# 模型保存地址

@@ -20,8 +20,8 @@ import argparse
 from PIL import Image  # 注意Image,后面会用到
 import glob
 
-IMG_WIDE = 128
-IMG_HEIGHT = 128
+IMG_WIDE = 227
+IMG_HEIGHT = 227
 IMG_CHANNEL = 3
 
 
