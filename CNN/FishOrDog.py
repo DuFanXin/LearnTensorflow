@@ -22,9 +22,107 @@ import glob
 
 IMG_WIDE, IMG_HEIGHT, IMG_CHANNEL = 227, 227, 3
 EPOCH_NUM = 50
+TRAIN_BATCH_SIZE = 80
 
 
-def change_prefix(files):
+class Net:
+	input_image, input_label = [None] * 2
+	w_1, w_2, w_3, w_4, w_5, w_6, w_7 = [None] * 7
+	result_1_conv, result_2_conv, result_3_conv, result_4_conv = [None] * 4
+	b_1, b_2, b_3, b_4, b_5, b_6, b_7 = [None] * 7
+	result_1_relu, result_2_relu, result_3_relu, result_4_relu, result_5_relu, result_6_relu, result_7_relu = [None] * 7
+	result_5_fc, result_6_fc, result_7_fc = [None] * 3
+	result_1_maxpool, result_2_maxpool, result_3_maxpool, result_4_maxpool = [None] * 4
+	result_expand = None
+	result_8_softmax = None
+	loss, loss_mean = [None] * 2
+	train_step = None
+
+	def __init__(self):
+		print('new network')
+
+	def set_up_network(self):
+		# input and output
+		self.input_image = tf.placeholder(dtype=tf.float32, shape=[TRAIN_BATCH_SIZE, IMG_WIDE, IMG_WIDE, IMG_CHANNEL])
+		self.input_label = tf.placeholder(dtype=tf.float32, shape=[TRAIN_BATCH_SIZE, 2])
+
+		# layer 1
+		self.w_1 = tf.Variable(initial_value=tf.random_normal(shape=[11, 11, 3, 96], dtype=tf.float32), name='w_1')
+		self.b_1 = tf.Variable(initial_value=tf.random_normal(shape=[55, 55, 96], dtype=tf.float32), name='b_1')
+		self.result_1_conv = tf.nn.conv2d(
+			input=self.input_image, filter=self.w_1,
+			strides=[1, 4, 4, 1], padding='VALID')
+		self.result_1_relu = tf.nn.relu(tf.add(self.result_1_conv, self.b_1), name='relu_1')
+		self.result_1_maxpool = tf.nn.max_pool(
+			value=self.result_1_relu, ksize=[1, 3, 3, 1],
+			strides=[1, 2, 2, 1], padding='VALID')
+
+		# layer 2
+		self.w_2 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, 96, 256], dtype=tf.float32), name='w_2')
+		self.b_2 = tf.Variable(initial_value=tf.random_normal(shape=[27, 27, 256], dtype=tf.float32), name='b_2')
+		self.result_2_conv = tf.nn.conv2d(
+			input=self.result_1_maxpool, filter=self.w_2,
+			strides=[1, 1, 1, 1], padding='SAME')
+		self.result_2_relu = tf.nn.relu(tf.add(self.result_2_conv, self.b_2), name='relu_2')
+		self.result_2_maxpool = tf.nn.max_pool(
+			value=self.result_2_relu, ksize=[1, 3, 3, 1],
+			strides=[1, 2, 2, 1], padding='VALID')
+
+		# layer 3
+		self.w_3 = tf.Variable(initial_value=tf.random_normal(shape=[3, 3, 256, 384], dtype=tf.float32), name='w_3')
+		self.b_3 = tf.Variable(initial_value=tf.random_normal(shape=[13, 13, 384], dtype=tf.float32), name='b_3')
+		self.result_3_conv = tf.nn.conv2d(
+			input=self.result_2_maxpool, filter=self.w_3,
+			strides=[1, 1, 1, 1], padding='SAME')
+		self.result_3_relu = tf.nn.relu(tf.add(self.result_3_conv, self.b_3), name='relu_3')
+		self.result_3_maxpool = tf.nn.max_pool(
+			value=self.result_3_relu, ksize=[1, 3, 3, 1],
+			strides=[1, 1, 1, 1], padding='SAME')
+
+		# layer 4
+		self.w_4 = tf.Variable(initial_value=tf.random_normal(shape=[3, 3, 384, 256], dtype=tf.float32), name='w_4')
+		self.b_4 = tf.Variable(initial_value=tf.random_normal(shape=[13, 13, 256], dtype=tf.float32), name='b_4')
+		self.result_4_conv = tf.nn.conv2d(
+			input=self.result_3_maxpool, filter=self.w_4,
+			strides=[1, 1, 1, 1], padding='SAME')
+		self.result_4_relu = tf.nn.relu(tf.add(self.result_4_conv, self.b_4), name='relu_4')
+		self.result_4_maxpool = tf.nn.max_pool(
+			value=self.result_4_relu, ksize=[1, 3, 3, 1],
+			strides=[1, 2, 2, 1], padding='VALID')
+
+		# expand to [TRAIN_BATCH_SIZE, -1]
+		self.result_expand = tf.reshape(self.result_4_maxpool, [TRAIN_BATCH_SIZE, -1])
+
+		# layer 5
+		self.w_5 = tf.Variable(initial_value=tf.random_normal(shape=[9216, 4096], dtype=tf.float32), name='w_5')
+		self.b_5 = tf.Variable(initial_value=tf.random_normal(shape=[4096], dtype=tf.float32), name='b_5')
+		self.result_5_fc = tf.add(tf.matmul(self.result_expand, self.w_5), self.b_5, name='result_5_fc')
+		self.result_5_relu = tf.nn.relu(self.result_5_fc, name='result_5_relu')
+
+		# layer 6
+		self.w_6 = tf.Variable(initial_value=tf.random_normal(shape=[4096, 1024], dtype=tf.float32), name='w_6')
+		self.b_6 = tf.Variable(initial_value=tf.random_normal(shape=[1024], dtype=tf.float32), name='b_6')
+		self.result_6_fc = tf.add(tf.matmul(self.result_5_relu, self.w_6), self.b_6, name='result_6_fc')
+		self.result_6_relu = tf.nn.relu(self.result_6_fc, name='result_6_relu')
+
+		# layer 7
+		self.w_7 = tf.Variable(initial_value=tf.random_normal(shape=[1024, 2], dtype=tf.float32), name='w_7')
+		self.b_7 = tf.Variable(initial_value=tf.random_normal(shape=[2], dtype=tf.float32), name='b_7')
+		self.result_7_fc = tf.add(tf.matmul(self.result_6_relu, self.w_7), self.b_7, name='result_7_fc')
+		self.result_7_relu = tf.nn.relu(self.result_7_fc, name='result_7_relu')
+
+		# layer 8
+		self.loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.result_7_relu)
+		self.loss_mean = tf.reduce_mean(self.loss)
+
+		# Gradient Descent
+		self.train_step = tf.train.GradientDescentOptimizer(learning_rate=0.05).minimize(self.loss_mean)
+
+	def train(self):
+		self.train_step = tf.train.GradientDescentOptimizer(learning_rate=0.05).minimize(self.loss_mean)
+
+
+def change_prefix(files):   # 用来吧JPEG转换为JPG
 	for filename in files:
 		portion = os.path.splitext(filename)  # 分离文件名字和后缀
 		# print(portion)
@@ -36,11 +134,11 @@ def change_prefix(files):
 def write_img_to_tfrecords():
 
 	train_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'train_set.tfrecords'))  # 要生成的文件
-	development_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'development_set.tfrecords'))  # 要生成的文件
+	development_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'development_set.tfrecords'))
 	test_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'test_set.tfrecords'))  # 要生成的文件
 
 	# fish_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'fish/*.JPEG'))
-	dog_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'dog/*.JPEG'))
+	# dog_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'dog/*.JPEG'))
 	# change_prefix(fish_image_path)
 	# change_prefix(dog_image_path)
 	fish_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'fish/*.jpg'))
@@ -204,8 +302,8 @@ def read_image_batch(file_queue, batch_size):
 	image_batch, label_batch = tf.train.shuffle_batch(
 		tensors=[img, label], batch_size=batch_size,
 		capacity=capacity, min_after_dequeue=min_after_dequeue)
-	# one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=2))
-	one_hot_labels = tf.reshape(label_batch, [batch_size, 1])
+	one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=2))
+	# one_hot_labels = tf.reshape(label_batch, [batch_size, 1])
 	return image_batch, one_hot_labels
 
 
@@ -231,9 +329,9 @@ def main():
 			tf.train.match_filenames_once(test_file_path), num_epochs=EPOCH_NUM, shuffle=True)
 	test_images, test_labels = read_image_batch(test_image_filename_queue, 5)
 
-	# layer1
-	input_image = tf.placeholder(dtype=tf.float32, shape=[4, 128, 128, 3])
-	output_label = tf.placeholder(dtype=tf.float32, shape=[4, 4])
+	# net
+	net = Net()
+	net.set_up_network()
 
 	with tf.Session() as sess:  # 开始一个会话
 		sess.run(tf.global_variables_initializer())
@@ -241,26 +339,28 @@ def main():
 		# tf.summary.FileWriter(FLAGS.data_dir, sess.graph)
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
-		# example, label = sess.run([train_images, train_labels])
+		example, label = sess.run([train_images, train_labels])
+		result = sess.run(net.train_step, feed_dict={net.input_image: example, net.input_label: label})
+		print(result)
 		# example, label = sess.run([train_images, train_labels])
 		# print(label)
-		try:
-			epoch = 1
-			while not coord.should_stop():
-				# Run training steps or whatever
-				print('epoch' + str(epoch))
-				# example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
-				# print(label)
-				for i in range(5):
-					example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
-					print(label)
-				epoch += 1
-		except tf.errors.OutOfRangeError:
-			print('Done -- epoch limit reached')
-		finally:
-			# When done, ask the threads to stop.
-			coord.request_stop()
-		# coord.request_stop()
+		# try:
+		# 	epoch = 1
+		# 	while not coord.should_stop():
+		# 		# Run training steps or whatever
+		# 		print('epoch' + str(epoch))
+		# 		# example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
+		# 		# print(label)
+		# 		for i in range(5):
+		# 			example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
+		# 			print(label)
+		# 		epoch += 1
+		# except tf.errors.OutOfRangeError:
+		# 	print('Done -- epoch limit reached')
+		# finally:
+		# 	# When done, ask the threads to stop.
+		# 	coord.request_stop()
+		coord.request_stop()
 		coord.join(threads)
 	print("Done compute")
 
