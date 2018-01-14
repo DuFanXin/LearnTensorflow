@@ -21,7 +21,7 @@ from PIL import Image  # 注意Image,后面会用到
 import glob
 
 IMG_WIDE, IMG_HEIGHT, IMG_CHANNEL = 227, 227, 3
-EPOCH_NUM = 50
+EPOCH_NUM = 10
 TRAIN_BATCH_SIZE = 80
 
 
@@ -118,8 +118,63 @@ class Net:
 		# Gradient Descent
 		self.train_step = tf.train.GradientDescentOptimizer(learning_rate=0.05).minimize(self.loss_mean)
 
-	def train(self):
-		self.train_step = tf.train.GradientDescentOptimizer(learning_rate=0.05).minimize(self.loss_mean)
+	def train_the_model(self, train_files_queue):
+		# check point
+		ckpt_path = os.path.join(FLAGS.model_dir, "model.ckpt")
+		train_images, train_labels = read_image_batch(train_files_queue, 80)
+		tf.summary.scalar("loss", self.loss_mean)
+		# tf.summary.scalar("acurracy", acurracy)
+		merged_summary = tf.summary.merge_all()
+		all_parameters_saver = tf.train.Saver()
+		with tf.Session() as sess:  # 开始一个会话
+			sess.run(tf.global_variables_initializer())
+			sess.run(tf.local_variables_initializer())
+			summary_writer = tf.summary.FileWriter(FLAGS.model_dir, sess.graph)
+			# tf.summary.FileWriter(FLAGS.data_dir, sess.graph)
+			coord = tf.train.Coordinator()
+			threads = tf.train.start_queue_runners(coord=coord)
+			# example, label = sess.run([train_images, train_labels])
+			# result = sess.run(self.train_step, feed_dict={self.input_image: example, self.input_label: label})
+			# print(result)
+			# example, label = sess.run([train_images, train_labels])
+			# print(label)
+			try:
+				epoch, index = 1, 1
+				while not coord.should_stop():
+					# Run training steps or whatever
+					print('epoch ' + str(epoch))
+					# example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
+					# print(label)
+					for i in range(31):
+						example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
+						_, summary_str = sess.run(
+							[self.train_step, merged_summary],
+							feed_dict={self.input_image: example, self.input_label: label}
+						)
+						summary_writer.add_summary(summary_str, index)
+						index += 1
+						# print(label)
+					epoch += 1
+			except tf.errors.OutOfRangeError:
+				print('Done train -- epoch limit reached')
+			finally:
+				# When done, ask the threads to stop.
+				all_parameters_saver.save(sess=sess, save_path=ckpt_path)
+				coord.request_stop()
+			# coord.request_stop()
+			coord.join(threads)
+		print("Done compute")
+
+	def validate_the_model(self, development_files_queue):
+		ckpt_path = os.path.join(FLAGS.model_dir, "model.ckpt")
+		development_images, development_labels = read_image_batch(development_files_queue, 5)
+		all_parameters_saver = tf.train.Saver()
+		with tf.Session() as sess:
+			sess.run(tf.global_variables_initializer())
+			sess.run(tf.local_variables_initializer())
+			all_parameters_saver.restore(sess=sess, save_path=ckpt_path)
+			print(sess.run(self.b_7))
+
 
 
 def change_prefix(files):   # 用来吧JPEG转换为JPG
@@ -141,9 +196,9 @@ def write_img_to_tfrecords():
 	# dog_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'dog/*.JPEG'))
 	# change_prefix(fish_image_path)
 	# change_prefix(dog_image_path)
-	fish_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'fish/*.jpg'))
-	dog_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'dog/*.jpg'))
-	label = {'dog': 1, 'fish': 2}
+	fish_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'fish/*.JPEG'))
+	dog_image_path = glob.glob(os.path.join(FLAGS.data_dir, 'dog/*.JPEG'))
+	label = {'dog': 0, 'fish': 1}
 	# print(len(dog_image_path))
 	# print('files num ' + str(len(files_path)))
 	# dog_image_path_length = len(dog_image_path)
@@ -319,11 +374,11 @@ def main():
 
 	train_image_filename_queue = tf.train.string_input_producer(
 		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=EPOCH_NUM, shuffle=True)
-	train_images, train_labels = read_image_batch(train_image_filename_queue, 80)
+	# train_images, train_labels = read_image_batch(train_image_filename_queue, 80)
 
 	development_image_filename_queue = tf.train.string_input_producer(
 		tf.train.match_filenames_once(development_file_path), num_epochs=EPOCH_NUM, shuffle=True)
-	development_images, development_labels = read_image_batch(development_image_filename_queue, 5)
+	# development_images, development_labels = read_image_batch(development_image_filename_queue, 5)
 
 	test_image_filename_queue = tf.train.string_input_producer(
 			tf.train.match_filenames_once(test_file_path), num_epochs=EPOCH_NUM, shuffle=True)
@@ -332,37 +387,40 @@ def main():
 	# net
 	net = Net()
 	net.set_up_network()
+	# net.train_the_model(train_image_filename_queue)
+	net.validate_the_model(development_image_filename_queue)
 
-	with tf.Session() as sess:  # 开始一个会话
-		sess.run(tf.global_variables_initializer())
-		sess.run(tf.local_variables_initializer())
-		# tf.summary.FileWriter(FLAGS.data_dir, sess.graph)
-		coord = tf.train.Coordinator()
-		threads = tf.train.start_queue_runners(coord=coord)
-		example, label = sess.run([train_images, train_labels])
-		result = sess.run(net.train_step, feed_dict={net.input_image: example, net.input_label: label})
-		print(result)
-		# example, label = sess.run([train_images, train_labels])
-		# print(label)
-		# try:
-		# 	epoch = 1
-		# 	while not coord.should_stop():
-		# 		# Run training steps or whatever
-		# 		print('epoch' + str(epoch))
-		# 		# example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
-		# 		# print(label)
-		# 		for i in range(5):
-		# 			example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
-		# 			print(label)
-		# 		epoch += 1
-		# except tf.errors.OutOfRangeError:
-		# 	print('Done -- epoch limit reached')
-		# finally:
-		# 	# When done, ask the threads to stop.
-		# 	coord.request_stop()
-		coord.request_stop()
-		coord.join(threads)
-	print("Done compute")
+	# with tf.Session() as sess:  # 开始一个会话
+	# 	sess.run(tf.global_variables_initializer())
+	# 	sess.run(tf.local_variables_initializer())
+	# 	train_images, train_labels = read_image_batch(train_image_filename_queue, 80)
+	# 	# tf.summary.FileWriter(FLAGS.data_dir, sess.graph)
+	# 	coord = tf.train.Coordinator()
+	# 	threads = tf.train.start_queue_runners(coord=coord)
+	# 	example, label = sess.run([train_images, train_labels])
+	# 	# result = sess.run(net.train_step, feed_dict={net.input_image: example, net.input_label: label})
+	# 	# print(result)
+	# 	# example, label = sess.run([train_images, train_labels])
+	# 	# print(label)
+	# 	try:
+	# 		epoch = 1
+	# 		while not coord.should_stop():
+	# 			# Run training steps or whatever
+	# 			print('epoch' + str(epoch))
+	# 			# example, label = sess.run([test_images, test_labels])  # 在会话中取出image和label
+	# 			# print(label)
+	# 			for i in range(31):
+	# 				example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
+	# 				print(label)
+	# 			epoch += 1
+	# 	except tf.errors.OutOfRangeError:
+	# 		print('Done -- epoch limit reached')
+	# 	finally:
+	# 		# When done, ask the threads to stop.
+	# 		coord.request_stop()
+	# 	# coord.request_stop()
+	# 	coord.join(threads)
+	# print("Done compute")
 
 
 if __name__ == '__main__':
@@ -374,7 +432,7 @@ if __name__ == '__main__':
 
 	# 模型保存地址
 	parser.add_argument(
-		'--model_dir', type=str, default='',
+		'--model_dir', type=str, default='/home/dufanxin/PycharmProjects/image/models',
 		help='output model path')
 
 	# 日志地址
