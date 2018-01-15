@@ -145,11 +145,11 @@ def check_proprocess():
 	#
 	development_image_filename_queue = tf.train.string_input_producer(
 		tf.train.match_filenames_once(development_file_path))
-	development_images, development_labels = read_image_batch(development_image_filename_queue, 1)
+	development_images, development_labels = read_image_batch(development_image_filename_queue, 50)
 
 	test_image_filename_queue = tf.train.string_input_producer(
 			tf.train.match_filenames_once(test_file_path))
-	test_images, test_labels = read_image_batch(test_image_filename_queue, 1)
+	test_images, test_labels = read_image_batch(test_image_filename_queue, 50)
 	#
 	# print(train_images)
 	# print(train_labels)
@@ -207,5 +207,5 @@ if __name__ == '__main__':
 		'--output_dir', type=str, default='',
 		help='output data path')
 	FLAGS, _ = parser.parse_known_args()
-	main()
+	# main()
 	check_proprocess()
