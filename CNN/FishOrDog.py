@@ -138,7 +138,7 @@ class Net:
 		self.loss = -tf.multiply(x=self.input_label, y=tf.log(x=(self.result_8_softmax + EPS)))
 		self.loss_mean = tf.reduce_mean(self.loss)
 		# self.train_step = tf.train.GradientDescentOptimizer(learning_rate=0.05).minimize(self.loss_mean)
-		self.train_step = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(self.loss_mean)
+		self.train_step = tf.train.AdamOptimizer(learning_rate=1e-2).minimize(self.loss_mean)
 
 	def train_the_model(self, train_files_queue):
 		# check point
@@ -170,23 +170,23 @@ class Net:
 					for i in range(31):
 						example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
 						# print(label)
-						_, summary_str = sess.run(
-							[self.train_step, merged_summary],
+						_, lo, acc, summary_str = sess.run(
+							[self.train_step, self.loss_mean, self.accuracy, merged_summary],
 							feed_dict={self.input_image: example, self.input_label: label}
 						)
 						summary_writer.add_summary(summary_str, index)
-						# sess.run(
-						# 		[self.train_step],
-						# 		feed_dict={self.input_image: example, self.input_label: label}
+						# # sess.run(
+						# # 		[self.train_step],
+						# # 		feed_dict={self.input_image: example, self.input_label: label}
+						# # )
+						# lo = sess.run(
+						# 	[self.loss_mean],
+						# 	feed_dict={self.input_image: example, self.input_label: label}
 						# )
-						lo = sess.run(
-							[self.loss_mean],
-							feed_dict={self.input_image: example, self.input_label: label}
-						)
-						acc = sess.run(
-							[self.accuracy],
-							feed_dict={self.input_image: example, self.input_label: label}
-						)
+						# acc = sess.run(
+						# 	[self.accuracy],
+						# 	feed_dict={self.input_image: example, self.input_label: label}
+						# )
 						index += 1
 						print('loss: ' + str(lo) + ' and accuracy: ' + str(acc))
 					epoch += 1
@@ -487,7 +487,7 @@ def main():
 	# net
 	net = Net()
 	net.set_up_network(TRAIN_BATCH_SIZE)
-	# net.train_the_model(train_image_filename_queue)
+	net.train_the_model(train_image_filename_queue)
 	# net.set_up_network(DEVELOPMENT_BATCH_SIZE)
 	# net.validate_the_model(development_image_filename_queue)
 	# net.set_up_network(TEST_BATCH_SIZE)
