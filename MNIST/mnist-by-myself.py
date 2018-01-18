@@ -20,14 +20,19 @@ import argparse
 from PIL import Image  # 注意Image,后面会用到
 import glob
 
-IMG_WIDE, IMG_HEIGHT, IMG_CHANNEL = 32, 32, 1
-EPOCH_NUM = 10
-TRAIN_BATCH_SIZE = 128
+IMG_WIDE, IMG_HEIGHT, IMG_CHANNEL = 28, 28, 1
+EPOCH_NUM = 5
+TRAIN_BATCH_SIZE = 50
 DEVELOPMENT_BATCH_SIZE = 10
 TEST_BATCH_SIZE = 128
 EPS = 10e-5
 FLAGS = None
 CLASS_NUM = 10
+'''
+1.softmax就是激活函数，之前不需要再激活
+2.变量初始化很重要，特别是w
+3.样本之前要搅拌充分，否则会出现loss上下震荡
+'''
 
 
 class Net:
@@ -49,7 +54,11 @@ class Net:
 	def __init__(self):
 		print('new network')
 
+	def init_w(self, shape, name):
+		tf.Variable(initial_value=tf.truncated_normal(shape=shape, stddev=0.1, dtype=tf.float32), name=name)
+
 	def set_up_network(self, batch_size):
+		self.init_w(shape=[1], name='j')
 		# input and output
 		with tf.name_scope('input'):
 			self.input_image = tf.placeholder(
@@ -62,11 +71,11 @@ class Net:
 
 		# layer 1
 		with tf.name_scope('layer_1'):
-			self.w_1 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, IMG_CHANNEL, 6], dtype=tf.float32), name='w_1')
-			self.b_1 = tf.Variable(initial_value=tf.random_normal(shape=[6], dtype=tf.float32), name='b_1')
+			self.w_1 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, IMG_CHANNEL, 32], dtype=tf.float32), name='w_1')
+			self.b_1 = tf.Variable(initial_value=tf.random_normal(shape=[32], dtype=tf.float32), name='b_1')
 			self.result_1_conv = tf.nn.conv2d(
 				input=self.input_image, filter=self.w_1,
-				strides=[1, 1, 1, 1], padding='VALID', name='conv_1')
+				strides=[1, 1, 1, 1], padding='SAME', name='conv_1')
 			self.result_1_relu = tf.nn.relu(tf.nn.bias_add(self.result_1_conv, self.b_1), name='relu_1')
 			self.result_1_maxpool = tf.nn.max_pool(
 				value=self.result_1_relu, ksize=[1, 2, 2, 1],
@@ -76,11 +85,11 @@ class Net:
 
 		# layer 2
 		with tf.name_scope('layer_2'):
-			self.w_2 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, 6, 16], dtype=tf.float32), name='w_2')
-			self.b_2 = tf.Variable(initial_value=tf.random_normal(shape=[16], dtype=tf.float32), name='b_2')
+			self.w_2 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, 32, 64], dtype=tf.float32), name='w_2')
+			self.b_2 = tf.Variable(initial_value=tf.random_normal(shape=[64], dtype=tf.float32), name='b_2')
 			self.result_2_conv = tf.nn.conv2d(
 				input=self.result_1_maxpool, filter=self.w_2,
-				strides=[1, 1, 1, 1], padding='VALID', name='conv_2')
+				strides=[1, 1, 1, 1], padding='SAME', name='conv_2')
 			self.result_2_relu = tf.nn.relu(tf.add(self.result_2_conv, self.b_2), name='relu_2')
 			self.result_2_maxpool = tf.nn.max_pool(
 				value=self.result_2_relu, ksize=[1, 2, 2, 1],
@@ -95,15 +104,18 @@ class Net:
 
 		# layer 3
 		with tf.name_scope('layer_3'):
-			self.w_3 = tf.Variable(initial_value=tf.random_normal(shape=[400, 120], dtype=tf.float32), name='w_4')
-			self.b_3 = tf.Variable(initial_value=tf.random_normal(shape=[120], dtype=tf.float32), name='b_4')
+			# self.w_3 = tf.Variable(initial_value=tf.random_normal(shape=[400, 120], dtype=tf.float32), name='w_4')
+			self.w_3 = tf.Variable(initial_value=tf.truncated_normal(shape=[3136, 1024], stddev=0.1, dtype=tf.float32))
+			self.b_3 = tf.Variable(initial_value=tf.random_normal(shape=[1024], dtype=tf.float32), name='b_4')
 			self.result_3_fc = tf.matmul(self.result_expand, self.w_3, name='result_4_multiply')
 			self.result_3_relu = tf.nn.relu(tf.add(self.result_3_fc, self.b_3), name='relu_4')
-			self.result_3_dropout = tf.nn.dropout(x=self.result_3_relu, keep_prob=self.keep_prob, name='dropout_4')
+			# self.result_3_dropout = tf.nn.dropout(x=self.result_3_relu, keep_prob=self.keep_prob, name='dropout_4')
+			self.result_3_dropout = self.result_3_relu
 
 		# layer 4
 		with tf.name_scope('layer_4'):
-			self.w_4 = tf.Variable(initial_value=tf.random_normal(shape=[120, 84], dtype=tf.float32), name='w_4')
+			# self.w_4 = tf.Variable(initial_value=tf.random_normal(shape=[120, 84], dtype=tf.float32), name='w_4')
+			self.w_4 = tf.Variable(initial_value=tf.truncated_normal(shape=[1024, 84], stddev=0.1, dtype=tf.float32))
 			self.b_4 = tf.Variable(initial_value=tf.random_normal(shape=[84], dtype=tf.float32), name='b_4')
 			self.result_4_fc = tf.nn.bias_add(tf.matmul(self.result_3_dropout, self.w_4), self.b_4, name='result_4_fc')
 			self.result_4_relu = tf.nn.relu(self.result_4_fc, name='result_4_relu')
@@ -111,10 +123,13 @@ class Net:
 
 		# layer 5
 		with tf.name_scope('layer_5'):
-			self.w_5 = tf.Variable(initial_value=tf.random_normal(shape=[84, 10], dtype=tf.float32), name='w_5')
+			# self.w_5 = tf.Variable(initial_value=tf.random_normal(shape=[84, 10], dtype=tf.float32), name='w_5')
+			self.w_5 = tf.Variable(initial_value=tf.truncated_normal(shape=[84, 10], stddev=0.1, dtype=tf.float32))
 			self.b_5 = tf.Variable(initial_value=tf.random_normal(shape=[10], dtype=tf.float32), name='b_5')
 			self.result_5_fc = tf.add(tf.matmul(self.result_4_dropout, self.w_5), self.b_5, name='result_5_fc')
-			self.result_5_relu = tf.nn.relu(self.result_5_fc, name='result_5_relu')
+			# self.result_5_relu = tf.nn.relu(self.result_5_fc, name='result_5_relu')
+			self.result_5_relu = self.result_5_fc
+			# self.result_5_relu = self.result_4_fc
 
 		# softmax loss
 		with tf.name_scope('softmax_loss'):
@@ -155,37 +170,24 @@ class Net:
 				epoch, index = 1, 1
 				while not coord.should_stop():
 					# Run training steps or whatever
-					print('epoch ' + str(epoch))
+					# print('epoch ' + str(epoch))
 					example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
 					# print(label)
-					# lo, acc, summary_str = sess.run(
-					# 	[self.loss_mean, self.accuracy, merged_summary],
-					# 	feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0}
-					# )
-					# summary_writer.add_summary(summary_str, index)
-					_, summary_str = sess.run(
-						[self.train_step, merged_summary],
-						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 0.5}
+					lo, acc, summary_str = sess.run(
+						[self.loss_mean, self.accuracy, merged_summary],
+						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0}
 					)
 					summary_writer.add_summary(summary_str, index)
 					index += 1
-					# if index % 100 == 0:
-					# 	print('num %d, loss: %.6f and accuracy: %.6f' % (index, lo, acc))
-					# epoch += 1
-					# for i in range(31):
-					# 	example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
-					# 	# print(label)
-					# 	_, lo, acc, summary_str = sess.run(
-					# 		[self.train_step, self.loss_mean, self.accuracy, merged_summary],
-					# 		feed_dict={self.input_image: example, self.input_label: label}
-					# 	)
-					# 	summary_writer.add_summary(summary_str, index)
-					# 	index += 1
-					# 	if index % 100:
-					# 		print('loss: ' + str(lo) + ' and accuracy: ' + str(acc))
+					if index % 10 == 0:
+						print('num %d, loss: %.6f and accuracy: %.6f' % (index, lo, acc))
+					sess.run(
+						[self.train_step],
+						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0}
+					)
 					epoch += 1
 			except tf.errors.OutOfRangeError:
-				print('Done train -- epoch limit reached %d' % index)
+				print('Done train -- epoch limit reached %d')
 			finally:
 				# When done, ask the threads to stop.
 				all_parameters_saver.save(sess=sess, save_path=ckpt_path)
@@ -344,8 +346,8 @@ def read_image(file_queue):
 
 def read_image_batch(file_queue, batch_size):
 	img, label = read_image(file_queue)
-	min_after_dequeue = 2000
-	capacity = 4000
+	min_after_dequeue = 20000
+	capacity = 40000
 	# image_batch, label_batch = tf.train.batch([img, label], batch_size=batch_size, capacity=capacity, num_threads=10)
 	image_batch, label_batch = tf.train.shuffle_batch(
 		tensors=[img, label], batch_size=batch_size,
@@ -379,10 +381,10 @@ def main():
 
 	# net
 	net = Net()
-	# net.set_up_network(TRAIN_BATCH_SIZE)
-	# net.train_the_model(train_image_filename_queue)
-	net.set_up_network(TEST_BATCH_SIZE)
-	net.test_the_model(test_image_filename_queue)
+	net.set_up_network(TRAIN_BATCH_SIZE)
+	net.train_the_model(train_image_filename_queue)
+	# net.set_up_network(TEST_BATCH_SIZE)
+	# net.test_the_model(test_image_filename_queue)
 
 
 if __name__ == '__main__':

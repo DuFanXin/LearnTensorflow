@@ -63,8 +63,9 @@ class Net:
 		self.result_1_maxpool = tf.nn.max_pool(
 			value=self.result_1_relu, ksize=[1, 3, 3, 1],
 			strides=[1, 2, 2, 1], padding='VALID')
-		self.result_1 = tf.nn.lrn(input=self.result_1_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
-		self.result_1 = tf.nn.dropout(x=self.result_1, keep_prob=self.dropout)
+		# self.result_1 = tf.nn.lrn(input=self.result_1_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
+		# self.result_1 = tf.nn.dropout(x=self.result_1, keep_prob=self.dropout)
+		self.result_1 = self.result_1_maxpool
 
 		# layer 2
 		self.w_2 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, 96, 256], dtype=tf.float32), name='w_2')
@@ -76,8 +77,9 @@ class Net:
 		self.result_2_maxpool = tf.nn.max_pool(
 			value=self.result_2_relu, ksize=[1, 3, 3, 1],
 			strides=[1, 2, 2, 1], padding='VALID')
-		self.result_2 = tf.nn.lrn(input=self.result_2_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
-		self.result_2 = tf.nn.dropout(x=self.result_2, keep_prob=self.dropout)
+		# self.result_2 = tf.nn.lrn(input=self.result_2_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
+		# self.result_2 = tf.nn.dropout(x=self.result_2, keep_prob=self.dropout)
+		self.result_2 = self.result_2_maxpool
 
 		# layer 3
 		self.w_3 = tf.Variable(initial_value=tf.random_normal(shape=[3, 3, 256, 384], dtype=tf.float32), name='w_3')
@@ -89,8 +91,9 @@ class Net:
 		self.result_3_maxpool = tf.nn.max_pool(
 			value=self.result_3_relu, ksize=[1, 3, 3, 1],
 			strides=[1, 1, 1, 1], padding='SAME')
-		self.result_3 = tf.nn.lrn(input=self.result_3_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
-		self.result_3 = tf.nn.dropout(x=self.result_3, keep_prob=self.dropout)
+		# self.result_3 = tf.nn.lrn(input=self.result_3_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
+		# self.result_3 = tf.nn.dropout(x=self.result_3, keep_prob=self.dropout)
+		self.result_3 = self.result_3_maxpool
 
 		# layer 4
 		self.w_4 = tf.Variable(initial_value=tf.random_normal(shape=[3, 3, 384, 256], dtype=tf.float32), name='w_4')
@@ -102,8 +105,9 @@ class Net:
 		self.result_4_maxpool = tf.nn.max_pool(
 			value=self.result_4_relu, ksize=[1, 3, 3, 1],
 			strides=[1, 2, 2, 1], padding='VALID')
-		self.result_4 = tf.nn.lrn(input=self.result_4_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
-		self.result_4 = tf.nn.dropout(x=self.result_4, keep_prob=self.dropout)
+		# self.result_4 = tf.nn.lrn(input=self.result_4_maxpool, depth_radius=4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
+		# self.result_4 = tf.nn.dropout(x=self.result_4, keep_prob=self.dropout)
+		self.result_4 = self.result_4_maxpool
 
 		# expand to [batch_size, -1]
 		self.result_expand = tf.reshape(self.result_4, [batch_size, -1])
@@ -124,7 +128,8 @@ class Net:
 		self.w_7 = tf.Variable(initial_value=tf.random_normal(shape=[1024, 2], dtype=tf.float32), name='w_7')
 		self.b_7 = tf.Variable(initial_value=tf.random_normal(shape=[2], dtype=tf.float32), name='b_7')
 		self.result_7_fc = tf.add(tf.matmul(self.result_6_relu, self.w_7), self.b_7, name='result_7_fc')
-		self.result_7_relu = tf.nn.relu(self.result_7_fc, name='result_7_relu')
+		# self.result_7_relu = tf.nn.relu(self.result_7_fc, name='result_7_relu')
+		self.result_7_relu = self.result_7_fc
 
 		# layer 8
 		self.result_8_softmax = tf.nn.softmax(logits=self.result_7_relu, name='result_8_softmax')
@@ -138,7 +143,7 @@ class Net:
 		self.loss = -tf.multiply(x=self.input_label, y=tf.log(x=(self.result_8_softmax + EPS)))
 		self.loss_mean = tf.reduce_mean(self.loss)
 		# self.train_step = tf.train.GradientDescentOptimizer(learning_rate=0.05).minimize(self.loss_mean)
-		self.train_step = tf.train.AdamOptimizer(learning_rate=1e-2).minimize(self.loss_mean)
+		self.train_step = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(self.loss_mean)
 
 	def train_the_model(self, train_files_queue):
 		# check point
