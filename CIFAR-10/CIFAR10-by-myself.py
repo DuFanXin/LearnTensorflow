@@ -2,8 +2,8 @@
 '''  
 #====#====#====#====
 # Project Name:     LearnTensorflow 
-# File Name:        mnist-by-myself 
-# Date:             1/16/18 8:22 PM 
+# File Name:        CIFAR10-by-myself 
+# Date:             1/19/18 11:38 AM 
 # Using IDE:        PyCharm Community Edition  
 # From HomePage:    https://github.com/DuFanXin/LearnTensorflow
 # Author:           DuFanXin 
@@ -12,20 +12,22 @@
 # Copyright (c) 2018, All Rights Reserved.
 #====#====#====#==== 
 '''
-
 import tensorflow as tf
 import os
 import argparse
 # import matplotlib.pyplot as plt
+# from PIL import Image  # 注意Image,后面会用到
+# import glob
 
-IMG_WIDE, IMG_HEIGHT, IMG_CHANNEL = 28, 28, 1
-EPOCH_NUM = 5
-TRAIN_BATCH_SIZE = 50
+IMG_WIDE, IMG_HEIGHT, IMG_CHANNEL = 32, 32, 3
+EPOCH_NUM = 1
+TRAIN_BATCH_SIZE = 128
 DEVELOPMENT_BATCH_SIZE = 10
 TEST_BATCH_SIZE = 128
 EPS = 10e-5
 FLAGS = None
 CLASS_NUM = 10
+labels = {0: '飞机', 1: '车', 2: '鸟', 3: '猫', 4: '鹿', 5: '狗', 6: '青蛙', 7: '马', 8: '船', 9: '卡车'}
 '''
 1.softmax就是激活函数，之前不需要再激活
 2.变量初始化很重要，特别是w
@@ -48,17 +50,23 @@ class Net:
 	correct_prediction = None
 	accuracy = None
 	keep_prob = None
+	lamb = None
 
 	def __init__(self):
 		print('new network')
 
-	def init_w(self, shape, name):
-		tf.Variable(initial_value=tf.truncated_normal(shape=shape, stddev=0.1, dtype=tf.float32), name=name)
+	@staticmethod
+	def init_w(shape, name):
+		return tf.Variable(initial_value=tf.truncated_normal(shape=shape, stddev=0.1, dtype=tf.float32), name=name)
+
+	@staticmethod
+	def init_b(shape, name):
+		return tf.Variable(initial_value=tf.random_normal(shape=shape, dtype=tf.float32), name=name)
 
 	def set_up_network(self, batch_size):
-		self.init_w(shape=[1], name='j')
 		# input and output
 		with tf.name_scope('input'):
+			# learning_rate = tf.train.exponential_decay()
 			self.input_image = tf.placeholder(
 				dtype=tf.float32, shape=[batch_size, IMG_WIDE, IMG_WIDE, IMG_CHANNEL], name='input_images'
 			)
@@ -66,11 +74,13 @@ class Net:
 				dtype=tf.float32, shape=[batch_size, CLASS_NUM], name='input_labels'
 			)
 			self.keep_prob = tf.placeholder(dtype=tf.float32, name='keep_prob')
+			self.lamb = tf.placeholder(dtype=tf.float32, name='lambda')
 
 		# layer 1
 		with tf.name_scope('layer_1'):
-			self.w_1 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, IMG_CHANNEL, 32], dtype=tf.float32), name='w_1')
-			self.b_1 = tf.Variable(initial_value=tf.random_normal(shape=[32], dtype=tf.float32), name='b_1')
+			self.w_1 = self.init_w(shape=[5, 5, IMG_CHANNEL, 64], name='w_1')
+			tf.add_to_collection(name='loss', value=tf.contrib.layers.l2_regularizer(self.lamb)(self.w_1))
+			self.b_1 = self.init_b(shape=[64], name='b_1')
 			self.result_1_conv = tf.nn.conv2d(
 				input=self.input_image, filter=self.w_1,
 				strides=[1, 1, 1, 1], padding='SAME', name='conv_1')
@@ -83,12 +93,13 @@ class Net:
 
 		# layer 2
 		with tf.name_scope('layer_2'):
-			self.w_2 = tf.Variable(initial_value=tf.random_normal(shape=[5, 5, 32, 64], dtype=tf.float32), name='w_2')
-			self.b_2 = tf.Variable(initial_value=tf.random_normal(shape=[64], dtype=tf.float32), name='b_2')
+			self.w_2 = self.init_w(shape=[5, 5, 64, 128], name='w_2')
+			tf.add_to_collection(name='loss', value=tf.contrib.layers.l2_regularizer(self.lamb)(self.w_2))
+			self.b_2 = self.init_b(shape=[128], name='b_2')
 			self.result_2_conv = tf.nn.conv2d(
 				input=self.result_1_maxpool, filter=self.w_2,
 				strides=[1, 1, 1, 1], padding='SAME', name='conv_2')
-			self.result_2_relu = tf.nn.relu(tf.add(self.result_2_conv, self.b_2), name='relu_2')
+			self.result_2_relu = tf.nn.relu(tf.nn.bias_add(self.result_2_conv, self.b_2), name='relu_2')
 			self.result_2_maxpool = tf.nn.max_pool(
 				value=self.result_2_relu, ksize=[1, 2, 2, 1],
 				strides=[1, 2, 2, 1], padding='VALID', name='maxpool_2')
@@ -102,29 +113,37 @@ class Net:
 
 		# layer 3
 		with tf.name_scope('layer_3'):
-			# self.w_3 = tf.Variable(initial_value=tf.random_normal(shape=[400, 120], dtype=tf.float32), name='w_4')
-			self.w_3 = tf.Variable(initial_value=tf.truncated_normal(shape=[3136, 1024], stddev=0.1, dtype=tf.float32))
-			self.b_3 = tf.Variable(initial_value=tf.random_normal(shape=[1024], dtype=tf.float32), name='b_4')
+			self.w_3 = self.init_w(shape=[8 * 8 * 128, 1024], name='w_3')
+			tf.add_to_collection(name='loss', value=tf.contrib.layers.l2_regularizer(self.lamb)(self.w_3))
+			self.b_3 = self.init_w(shape=[1024], name='b_3')
 			self.result_3_fc = tf.matmul(self.result_expand, self.w_3, name='result_4_multiply')
-			self.result_3_relu = tf.nn.relu(tf.add(self.result_3_fc, self.b_3), name='relu_4')
-			# self.result_3_dropout = tf.nn.dropout(x=self.result_3_relu, keep_prob=self.keep_prob, name='dropout_4')
-			self.result_3_dropout = self.result_3_relu
+			self.result_3_relu = tf.nn.relu(tf.nn.bias_add(self.result_3_fc, self.b_3), name='relu_4')
+			self.result_3_dropout = tf.nn.dropout(x=self.result_3_relu, keep_prob=self.keep_prob, name='dropout_4')
+			# self.result_3_dropout = self.result_3_relu
+			# tf.layers.batch_normalization()
 
 		# layer 4
 		with tf.name_scope('layer_4'):
 			# self.w_4 = tf.Variable(initial_value=tf.random_normal(shape=[120, 84], dtype=tf.float32), name='w_4')
-			self.w_4 = tf.Variable(initial_value=tf.truncated_normal(shape=[1024, 84], stddev=0.1, dtype=tf.float32))
-			self.b_4 = tf.Variable(initial_value=tf.random_normal(shape=[84], dtype=tf.float32), name='b_4')
+			# self.w_4 = tf.Variable(initial_value=tf.truncated_normal(shape=[1024, 84], stddev=0.1, dtype=tf.float32))
+			self.w_4 = self.init_w(shape=[1024, 84], name='w_4')
+			tf.add_to_collection(name='loss', value=tf.contrib.layers.l2_regularizer(self.lamb)(self.w_4))
+			# self.b_4 = tf.Variable(initial_value=tf.random_normal(shape=[84], dtype=tf.float32), name='b_4')
+			self.b_4 = self.init_b(shape=[84], name='b_4')
 			self.result_4_fc = tf.nn.bias_add(tf.matmul(self.result_3_dropout, self.w_4), self.b_4, name='result_4_fc')
 			self.result_4_relu = tf.nn.relu(self.result_4_fc, name='result_4_relu')
-			self.result_4_dropout = tf.nn.dropout(x=self.result_4_relu, keep_prob=self.keep_prob, name='dropout_4')
+			# self.result_4_dropout = tf.nn.dropout(x=self.result_4_relu, keep_prob=self.keep_prob, name='dropout_4')
+			self.result_4_dropout = self.result_4_relu
 
 		# layer 5
 		with tf.name_scope('layer_5'):
 			# self.w_5 = tf.Variable(initial_value=tf.random_normal(shape=[84, 10], dtype=tf.float32), name='w_5')
-			self.w_5 = tf.Variable(initial_value=tf.truncated_normal(shape=[84, 10], stddev=0.1, dtype=tf.float32))
-			self.b_5 = tf.Variable(initial_value=tf.random_normal(shape=[10], dtype=tf.float32), name='b_5')
-			self.result_5_fc = tf.add(tf.matmul(self.result_4_dropout, self.w_5), self.b_5, name='result_5_fc')
+			# self.w_5 = tf.Variable(initial_value=tf.truncated_normal(shape=[84, 10], stddev=0.1, dtype=tf.float32))
+			self.w_5 = self.init_w(shape=[84, 10], name='w_5')
+			tf.add_to_collection(name='loss', value=tf.contrib.layers.l2_regularizer(self.lamb)(self.w_5))
+			# self.b_5 = tf.Variable(initial_value=tf.random_normal(shape=[10], dtype=tf.float32), name='b_5')
+			self.b_5 = self.init_b(shape=[10], name='b_5')
+			self.result_5_fc = tf.nn.bias_add(tf.matmul(self.result_4_dropout, self.w_5), self.b_5, name='result_5_fc')
 			# self.result_5_relu = tf.nn.relu(self.result_5_fc, name='result_5_relu')
 			self.result_5_relu = self.result_5_fc
 			# self.result_5_relu = self.result_4_fc
@@ -133,6 +152,8 @@ class Net:
 		with tf.name_scope('softmax_loss'):
 			self.loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.result_5_relu, name='loss')
 			self.loss_mean = tf.reduce_mean(self.loss)
+			tf.add_to_collection(name='loss', value=self.loss_mean)
+			self.loss_mean = tf.add_n(inputs=tf.get_collection(key='loss'))
 
 		# accuracy
 		with tf.name_scope('accuracy'):
@@ -173,7 +194,7 @@ class Net:
 					# print(label)
 					lo, acc, summary_str = sess.run(
 						[self.loss_mean, self.accuracy, merged_summary],
-						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0}
+						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0, self.lamb: 0.004}
 					)
 					summary_writer.add_summary(summary_str, index)
 					index += 1
@@ -181,7 +202,7 @@ class Net:
 						print('num %d, loss: %.6f and accuracy: %.6f' % (index, lo, acc))
 					sess.run(
 						[self.train_step],
-						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0}
+						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 0.6, self.lamb: 0.004}
 					)
 					epoch += 1
 			except tf.errors.OutOfRangeError:
@@ -256,7 +277,7 @@ class Net:
 					example, label = sess.run([development_images, development_labels])  # 在会话中取出image和label
 					result = sess.run(
 						fetches=self.accuracy,
-						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1}
+						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob:1}
 					)
 					print(result)
 					epoch += 1
@@ -281,7 +302,7 @@ def change_prefix(files):   # 用来吧JPEG转换为JPG
 
 
 def write_img_to_tfrecords():
-	from PIL import Image  # 注意Image,后面会用到
+	from PIL import Image
 	import glob
 	import random
 	train_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'train_set.tfrecords'))  # 要生成的文件
@@ -292,7 +313,8 @@ def write_img_to_tfrecords():
 	image_paths = []
 	image_labels = []
 	for index in range(10):
-		path = glob.glob(os.path.join(FLAGS.data_dir, 'trainimage/pic2/%d/*.bmp' % index))
+		path = glob.glob(os.path.join(FLAGS.data_dir, 'train/%d/*.jpg' % index))
+		# print(path)
 		# print(len(path))
 		image_paths.extend(path)
 		image_labels.extend([index] * len(path))
@@ -307,7 +329,7 @@ def write_img_to_tfrecords():
 		# print(i)
 		if i % 100 == 0:
 			print('num %d the path %s, index %d' % (i, image_paths[index], image_labels[index]))
-		img = Image.open(image_paths[index]).convert('L')
+		img = Image.open(image_paths[index])
 		img = img.resize((IMG_WIDE, IMG_HEIGHT))
 		img_raw = img.tobytes()  # 将图片转化为二进制格式
 		example = tf.train.Example(features=tf.train.Features(feature={
@@ -322,7 +344,7 @@ def write_img_to_tfrecords():
 	image_paths = []
 	image_labels = []
 	for index in range(10):
-		path = glob.glob(os.path.join(FLAGS.data_dir, 'testimage/pic2/%d/*.bmp' % index))
+		path = glob.glob(os.path.join(FLAGS.data_dir, 'test/%d/*.jpg' % index))
 		# print(len(path))
 		image_paths.extend(path)
 		image_labels.extend([index] * len(path))
@@ -337,7 +359,7 @@ def write_img_to_tfrecords():
 		# print(i)
 		if i % 100 == 0:
 			print('num %d the path %s, index %d' % (i, image_paths[index], image_labels[index]))
-		img = Image.open(image_paths[index]).convert('L')
+		img = Image.open(image_paths[index])
 		img = img.resize((IMG_WIDE, IMG_HEIGHT))
 		img_raw = img.tobytes()  # 将图片转化为二进制格式
 		example = tf.train.Example(features=tf.train.Features(feature={
@@ -409,17 +431,17 @@ def main():
 
 	# net
 	net = Net()
-	# net.set_up_network(TRAIN_BATCH_SIZE)
-	# net.train_the_model(train_image_filename_queue)
-	net.set_up_network(TEST_BATCH_SIZE)
-	net.test_the_model(test_image_filename_queue)
+	net.set_up_network(TRAIN_BATCH_SIZE)
+	net.train_the_model(train_image_filename_queue)
+	# net.set_up_network(TEST_BATCH_SIZE)
+	# net.test_the_model(test_image_filename_queue)
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	# 数据地址
 	parser.add_argument(
-		'--data_dir', type=str, default='../input-data/MNIST/pictures',
+		'--data_dir', type=str, default='../input-data/CIFAR-10',
 		help='Directory for storing input data')
 
 	# 模型保存地址
