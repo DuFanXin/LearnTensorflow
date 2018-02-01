@@ -2,8 +2,8 @@
 '''  
 #====#====#====#====
 # Project Name:     LearnTensorflow 
-# File Name:        unet 
-# Date:             1/26/18 11:28 AM 
+# File Name:        TestSomeFuctions 
+# Date:             1/15/18 10:01 AM 
 # Using IDE:        PyCharm Community Edition  
 # From HomePage:    https://github.com/DuFanXin/LearnTensorflow
 # Author:           DuFanXin 
@@ -13,70 +13,47 @@
 #====#====#====#==== 
 '''
 import tensorflow as tf
-import argparse
+from PIL import Image
+import glob
 import os
-# import keras
+import numpy as np
+from skimage import io, transform, img_as_ubyte
+import warnings
+# import matplotlib.pyplot as plt
+# img = Image.open('../input-data/MNIST/pictures/trainimage/pic2/0/3113.bmp')
+# fig = plt.figure()
+# plt.imshow(img, cmap = 'binary')#黑白显示
+# plt.show()
+# img.show()
 INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL = 572, 572, 3
 OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_CHANNEL = 387, 387, 1
-EPOCH_NUM = 1
-TRAIN_BATCH_SIZE = 1
-DEVELOPMENT_BATCH_SIZE = 10
-TEST_BATCH_SIZE = 128
-EPS = 10e-5
-FLAGS = None
-CLASS_NUM = 21
-'''
-类别名称     R G B
-background  0 0 0       背景
-aeroplane   128 0 0     飞机
-bicycle     0 128 0     自行车
-bird        128 128 0   鸟
-boat        0 0 128     船
-bottle      128 0 128   瓶子
-bus         0 128 128   大巴
-car         128 128 128 车
-cat         64 0 0      猫
-chair       192 0 0     椅子
-cow         64 128 0    牛
-diningtable 192 128 0   餐桌
-dog         64 0 128    狗
-horse       192 0 128   马
-motorbike   64 128 128  摩托车
-person      192 128 128 人
-pottedplant 0 64 0      盆栽
-sheep       128 64 0    羊
-sofa        0 192 0     沙发
-train       128 192 0   火车
-tvmonitor   0 64 128    显示器
-'''
+CLASS_NUM, TRAIN_BATCH_SIZE = 21, 1
 
 
 def convert_from_color_segmentation(image_3d=None):
-	import numpy as np
-	from skimage import img_as_ubyte
-	import warnings
+	# import numpy as np
 	patterns = {
-		(0, 0, 0):          0,      # 背景
-		(128, 0, 0):        1,      # 飞机
-		(0, 128, 0):        2,      # 自行车
-		(128, 128, 0):      3,      # 鸟
-		(0, 0, 128):        4,      # 船
-		(128, 0, 128):      5,      # 瓶子
-		(0, 128, 128):      6,      # 大巴
-		(128, 128, 128):    7,      # 车
-		(64, 0, 0):         8,      # 猫
-		(192, 0, 0):        9,      # 椅子
-		(64, 128, 0):       10,     # 牛
-		(192, 128, 0):      11,     # 餐桌
-		(64, 0, 128):       12,     # 狗
-		(192, 0, 128):      13,     # 马
-		(64, 128, 128):     14,     # 摩托车
-		(192, 128, 128):    15,     # 人
-		(0, 64, 0):         16,     # 盆栽
-		(128, 64, 0):       17,     # 羊
-		(0, 192, 0):        18,     # 沙发
-		(128, 192, 0):      19,     # 火车
-		(0, 64, 128):       20      # 显示器
+		(0, 0, 0): 0,
+		(128, 0, 0): 1,
+		(0, 128, 0): 2,
+		(128, 128, 0): 3,
+		(0, 0, 128): 4,
+		(128, 0, 128): 5,
+		(0, 128, 128): 6,
+		(128, 128, 128): 7,
+		(64, 0, 0): 8,
+		(192, 0, 0): 9,
+		(64, 128, 0): 10,
+		(192, 128, 0): 11,
+		(64, 0, 128): 12,
+		(192, 0, 128): 13,
+		(64, 128, 128): 14,
+		(192, 128, 128): 15,
+		(0, 64, 0): 16,
+		(128, 64, 0): 17,
+		(0, 192, 0): 18,
+		(128, 192, 0): 19,
+		(0, 64, 128): 20
 	}
 	with warnings.catch_warnings():
 		warnings.simplefilter("ignore")
@@ -85,21 +62,33 @@ def convert_from_color_segmentation(image_3d=None):
 	for pattern, index in patterns.items():
 		# print(pattern)
 		# print(index)
-		m = (image_3d == np.array(pattern).reshape(1, 1, 3)).all(axis=2)
+		match = (image_3d == np.array(pattern).reshape(1, 1, 3)).all(axis=2)
 		# print(m)
-		image_2d[m] = index
+		image_2d[match] = index
 
 	return image_2d
 
+arr = (1, 1, 1)
+Map = {arr: 3}
+img = tf.Variable(initial_value=tf.constant(value=1, dtype=tf.int32, shape=[28, 28, 3]))
+a = tf.Variable(initial_value=tf.constant(value=1, dtype=tf.float32, shape=[5, 28, 28, 1024]))
 
-def write_img_to_tfrecords():
-	from skimage import io, transform
-	from PIL import Image
-	train_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'train_set.tfrecords'))  # 要生成的文件
-	# development_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'development_set.tfrecords'))
-	test_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'test_set.tfrecords'))  # 要生成的文件
+w = tf.Variable(initial_value=tf.constant(value=1, dtype=tf.float32, shape=[2, 2, 512, 1024]))
+b = tf.Variable(initial_value=tf.constant(value=1, dtype=tf.float32, shape=[512]))
+result_up = tf.nn.conv2d_transpose(
+				value=a, filter=w,
+				output_shape=[5, 56, 56, 512], strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
+result_conv = tf.nn.relu(tf.nn.bias_add(result_up, b, name='add_bias'), name='relu_3')
+
+file_name = b'2007_000063'
+
+
+def write():
+	train_set_writer = tf.python_io.TFRecordWriter(
+		os.path.join('../input-data/Segmentation', 'train_set_temp.tfrecords'))
+	path = os.path.join('../input-data/Segmentation', 'ImageSets/train.txt')
 	file_queue = tf.train.string_input_producer(
-		string_tensor=tf.train.match_filenames_once(os.path.join(FLAGS.data_dir, 'ImageSets/train.txt')), num_epochs=1, shuffle=True)
+		string_tensor=tf.train.match_filenames_once(path), num_epochs=1, shuffle=True)
 	reader = tf.TextLineReader()
 	key, value = reader.read(file_queue)
 	defaults = [['string']]
@@ -110,79 +99,80 @@ def write_img_to_tfrecords():
 		sess.run(tf.local_variables_initializer())
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
-		epoch = 1
-		try:
-			while not coord.should_stop():
-				# Run training steps or whatever
-				print('epoch ' + str(epoch))
-				file_name = sess.run(files_name)
-				train_img = Image.open(
-					os.path.join('../input-data/Segmentation', 'TrainImage/%s.jpg' % str(file_name[0], encoding='utf-8')))
-				train_img = train_img.resize((INPUT_IMG_HEIGHT, INPUT_IMG_WIDE))
-				# train_img_raw = train_img.tobytes()  # 将图片转化为二进制格式
+		file_name = sess.run(files_name)
+		print(file_name[0])
+		# print(os.path.join('../input-data/Segmentation', 'TrainImage/%s.jpg' % str(file_name[0], encoding='utf-8')))
+		trainImage_value = tf.gfile.FastGFile(
+			os.path.join('../input-data/Segmentation', 'TrainImage/%s.jpg' % str(file_name[0], encoding='utf-8')),
+			'rb').read()
+		trainImage_tensor = tf.image.decode_jpeg(trainImage_value, channels=3)
+		trainImage_resized = tf.image.resize_images(trainImage_tensor, (INPUT_IMG_WIDE, INPUT_IMG_HEIGHT))
+		trainImage_arry = sess.run(trainImage_resized)
+		print(trainImage_arry.shape)
+		trainImage_string = trainImage_arry.tostring()
 
-				label_img = io.imread(
-					os.path.join('../input-data/Segmentation', 'LabelImage/%s.png' % str(file_name[0], encoding='utf-8')))
-				label_img = transform.resize(label_img, (OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE, 3))
-				label_img = convert_from_color_segmentation(label_img) * 10
-				# io.imsave(fname=os.path.join('../input-data/Segmentation', 'Labels/%s.jpg' % str(file_name[0], encoding='utf-8')), arr=label_img)
-				# print(label_img.shape)
-				# label.tostring()
+		labelImage_value = tf.gfile.FastGFile(
+			os.path.join('../input-data/Segmentation', 'LabelImage/%s.png' % str(file_name[0], encoding='utf-8')),
+			'rb').read()
+		labelImage_tensor = tf.image.decode_png(labelImage_value, channels=3)
+		labelImage_resized = tf.image.resize_images(labelImage_tensor, (OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE))
+		labelImage_arry = sess.run(labelImage_resized)
+		# labelImage_arry = tf.cast(labelImage_arry, tf.int32)
+		labelImage_converted = convert_from_color_segmentation(labelImage_arry)
+		# print(labelImage_arry)
+		# print(labelImage_converted)
+		labelImage_string = labelImage_converted.tostring()
 
-				example = tf.train.Example(features=tf.train.Features(feature={
-					'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[label_img.tostring()])),
-					'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[train_img.tobytes()]))
-				}))  # example对象对label和image数据进行封装
-				train_set_writer.write(example.SerializeToString())  # 序列化为字符串
-				epoch += 1
-		except tf.errors.OutOfRangeError:
-			print('Done writing -- epoch limit reached')
-		finally:
-			# When done, ask the threads to stop.
-			print('image num is %d' % epoch)
-			coord.request_stop()
-		# coord.request_stop()
+		example = tf.train.Example(features=tf.train.Features(feature={
+			"label": tf.train.Feature(bytes_list=tf.train.BytesList(value=[labelImage_string])),
+			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[trainImage_string]))
+		}))
+		train_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		coord.request_stop()
 		coord.join(threads)
-		# train_set_writer.close()
-	print("Done writing")
+		train_set_writer.close()
+	print("Done write")
 
 
-def read_image(file_queue):
-	reader = tf.TFRecordReader()
-	# key, value = reader.read(file_queue)
-	_, serialized_example = reader.read(file_queue)
-	features = tf.parse_single_example(
-		serialized_example,
-		features={
-			'label': tf.FixedLenFeature([], tf.string),
-			'image_raw': tf.FixedLenFeature([], tf.string)
-			})
+def write_2():
+	train_set_writer = tf.python_io.TFRecordWriter(
+		os.path.join('../input-data/Segmentation', 'train_set_temp.tfrecords'))
+	train_img = Image.open(
+		os.path.join('../input-data/Segmentation', 'TrainImage/%s.jpg' % str(file_name, encoding='utf-8')))
+	train_img = train_img.resize((INPUT_IMG_HEIGHT, INPUT_IMG_WIDE))
+	# train_img_raw = train_img.tobytes()  # 将图片转化为二进制格式
 
-	image = tf.decode_raw(features['image_raw'], tf.uint8)
-	# print('image ' + str(image))
-	image = tf.reshape(image, [INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, INPUT_IMG_CHANNEL])
-	# image = tf.cast(image, tf.float32) * (1. / 255) - 0.5
+	# train_img = io.imread(
+	# 	os.path.join('../input-data/Segmentation', 'TrainImage/%s.jpg' % str(file_name, encoding='utf-8')))
+	# train_img = transform.resize(train_img, (INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, 3))
 
-	label = tf.decode_raw(features['label'], tf.uint8)
-	# label = tf.cast(label, tf.int64)
-	label = tf.reshape(label, [OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
-	# label = tf.decode_raw(features['image_raw'], tf.uint8)
-	# print(label)
-	# label = tf.reshape(label, shape=[1, 4])
-	return image, label
+	# label_img = Image.open(
+	# 	os.path.join('../input-data/Segmentation', 'LabelImage/%s.png' % str(b'2007_000129', encoding='utf-8')))
+	# label_img = label_img.resize((INPUT_IMG_HEIGHT, INPUT_IMG_WIDE))
+	# # print(label_img)
+	# label_img_raw = label_img.tobytes()  # 将图片转化为二进制格式
 
-
-def read_image_batch(file_queue, batch_size):
-	img, label = read_image(file_queue)
-	min_after_dequeue = 2000
-	capacity = 4000
-	# image_batch, label_batch = tf.train.batch([img, label], batch_size=batch_size, capacity=capacity, num_threads=10)
-	image_batch, label_batch = tf.train.shuffle_batch(
-		tensors=[img, label], batch_size=batch_size,
-		capacity=capacity, min_after_dequeue=min_after_dequeue)
-	# one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=CLASS_NUM))
-	# one_hot_labels = tf.reshape(label_batch, [batch_size, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
-	return image_batch, label_batch
+	label_img = io.imread(
+		os.path.join('../input-data/Segmentation', 'LabelImage/%s.png' % str(file_name, encoding='utf-8')))
+	# io.imshow(data.astronaut())
+	label_img = transform.resize(label_img, (OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE, 3))
+	# print(label_img.dtype)
+	# print(label_img)
+	# label_img = img_as_ubyte(label_img)
+	# print(label_img)
+	label_img = convert_from_color_segmentation(label_img) * 10
+	# label_img = transform.resize(label_img, (OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE, 1))
+	io.imsave(
+		fname=os.path.join('../input-data/Segmentation', 'Labels/%s.jpg' % str(file_name, encoding='utf-8')), arr=label_img)
+	print(label_img)
+	# label.tostring()
+	example = tf.train.Example(features=tf.train.Features(feature={
+		'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[label_img.tostring()])),
+		'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[train_img.tobytes()]))
+	}))  # example对象对label和image数据进行封装
+	train_set_writer.write(example.SerializeToString())  # 序列化为字符串
+	# print(index % 4)
+	train_set_writer.close()
 
 
 class Unet:
@@ -240,7 +230,7 @@ class Unet:
 			self.input_image = tf.placeholder(
 				dtype=tf.float32, shape=[batch_size, INPUT_IMG_WIDE, INPUT_IMG_WIDE, INPUT_IMG_CHANNEL], name='input_images'
 			)
-
+			print(self.input_image)
 			# for softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
 			# using one-hot
 			# self.input_label = tf.placeholder(
@@ -252,6 +242,7 @@ class Unet:
 			self.input_label = tf.placeholder(
 				dtype=tf.int32, shape=[batch_size, OUTPUT_IMG_WIDE, OUTPUT_IMG_WIDE], name='input_labels'
 			)
+			print(self.input_label)
 			self.keep_prob = tf.placeholder(dtype=tf.float32, name='keep_prob')
 			self.lamb = tf.placeholder(dtype=tf.float32, name='lambda')
 
@@ -508,8 +499,7 @@ class Unet:
 			# self.loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
 
 			# not using one-hot
-			self.loss = \
-				tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
+			self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
 			self.loss_mean = tf.reduce_mean(self.loss)
 			tf.add_to_collection(name='loss', value=self.loss_mean)
 			self.loss_all = tf.add_n(inputs=tf.get_collection(key='loss'))
@@ -528,109 +518,106 @@ class Unet:
 		with tf.name_scope('Gradient_Descent'):
 			self.train_step = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(self.loss_all)
 
+		print('U-net setted')
+
 	def train(self, train_files_queue):
-		ckpt_path = os.path.join(FLAGS.model_dir, "model.ckpt")
+		# ckpt_path = os.path.join(FLAGS.model_dir, "model.ckpt")
 		train_images, train_labels = read_image_batch(train_files_queue, TRAIN_BATCH_SIZE)
-		tf.summary.scalar("loss", self.loss_mean)
-		tf.summary.scalar('accuracy', self.accuracy)
-		merged_summary = tf.summary.merge_all()
-		all_parameters_saver = tf.train.Saver()
+		# all_parameters_saver = tf.train.Saver()
 		with tf.Session() as sess:  # 开始一个会话
 			sess.run(tf.global_variables_initializer())
 			sess.run(tf.local_variables_initializer())
-			summary_writer = tf.summary.FileWriter(FLAGS.tb_dir, sess.graph)
-			tf.summary.FileWriter(FLAGS.model_dir, sess.graph)
+			# summary_writer = tf.summary.FileWriter(FLAGS.tb_dir, sess.graph)
+			# tf.summary.FileWriter(FLAGS.model_dir, sess.graph)
 			coord = tf.train.Coordinator()
 			threads = tf.train.start_queue_runners(coord=coord)
 			# example, label = sess.run([train_images, train_labels])
 			# result = sess.run(self.train_step, feed_dict={self.input_image: example, self.input_label: label})
 			# print(result)
-			# example, label = sess.run([train_images, train_labels])
-			# lo, acc, summary_str = sess.run(
-			# 	[self.loss_mean, self.accuracy, merged_summary],
-			# 	feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0, self.lamb: 0.004}
-			# )
-			# # summary_writer.add_summary(summary_str, index)
-			# sess.run(
-			# 	[self.train_step],
-			# 	feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 0.6, self.lamb: 0.004}
-			# )
-			# print(example.shape)
-			# print(label.shape)
-			try:
-				epoch = 1
-				while not coord.should_stop():
-					# Run training steps or whatever
-					# print('epoch ' + str(epoch))
-					example, label = sess.run([train_images, train_labels])  # 在会话中取出image和label
-					# print(label)
-					lo, acc, summary_str = sess.run(
-						[self.loss_mean, self.accuracy, merged_summary],
-						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0, self.lamb: 0.004}
-					)
-					summary_writer.add_summary(summary_str, epoch)
-					# print('num %d, loss: %.6f and accuracy: %.6f' % (epoch, lo, acc))
-					if epoch % 10 == 0:
-						print('num %d, loss: %.6f and accuracy: %.6f' % (epoch, lo, acc))
-					sess.run(
-						[self.train_step],
-						feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 0.6, self.lamb: 0.004}
-					)
-					epoch += 1
-			except tf.errors.OutOfRangeError:
-				print('Done train -- epoch limit reached')
-			finally:
-				# When done, ask the threads to stop.
-				all_parameters_saver.save(sess=sess, save_path=ckpt_path)
-				coord.request_stop()
-			# coord.request_stop()
+			example, label = sess.run([train_images, train_labels])
+			print(example.shape)
+			print(label.shape)
+			lo, acc = sess.run(
+				[self.loss_all, self.accuracy],
+				feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 1.0, self.lamb: 0.004}
+			)
+			# summary_writer.add_summary(summary_str, index)
+			print('loss: %.6f and accuracy: %.6f' % (lo, acc))
+			sess.run(
+				[self.train_step],
+				feed_dict={self.input_image: example, self.input_label: label, self.keep_prob: 0.6, self.lamb: 0.004}
+			)
+			coord.request_stop()
 			coord.join(threads)
 		print("Done training")
 
 
-def main():
-	# train
-	train_file_path = os.path.join(FLAGS.data_dir, "train_set.tfrecords")
-	# development
-	# development_file_path = os.path.join(FLAGS.data_dir, "development_set.tfrecords")
-	# test
-	# test_file_path = os.path.join(FLAGS.data_dir, "test_set.tfrecords")
-	# check point
-	# ckpt_path = os.path.join(FLAGS.model_dir, "model.ckpt")
+def read_image(file_queue):
+	reader = tf.TFRecordReader()
+	# key, value = reader.read(file_queue)
+	_, serialized_example = reader.read(file_queue)
+	features = tf.parse_single_example(
+		serialized_example,
+		features={
+			'label': tf.FixedLenFeature([], tf.string),
+			'image_raw': tf.FixedLenFeature([], tf.string)
+			})
+
+	image = tf.decode_raw(features['image_raw'], tf.uint8)
+	# print('image ' + str(type(image)))
+	# image = tf.reshape(image, [INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, 3])
+	image = tf.reshape(image, [INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, 3])
+	# image = tf.cast(image, tf.float32) * (1. / 255) - 0.5
+
+	label = tf.decode_raw(features['label'], tf.uint8)
+	# label = tf.cast(features['label'], tf.int64)
+	label = tf.reshape(label, [OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
+	# label = tf.decode_raw(features['image_raw'], tf.uint8)
+	# print(label)
+	# label = tf.reshape(label, shape=[1, 4])
+	return image, label
+
+
+def read_image_batch(file_queue, batch_size):
+	img, label = read_image(file_queue)
+	# print(img)
+	# print(label)
+	min_after_dequeue = 2000
+	capacity = 4000
+	# image_batch, label_batch = tf.train.batch([img, label], batch_size=batch_size, capacity=capacity, num_threads=10)
+	image_batch, label_batch = tf.train.shuffle_batch(
+		tensors=[img, label], batch_size=batch_size,
+		capacity=capacity, min_after_dequeue=min_after_dequeue)
+	# image_batch, label_batch = img, label
+	# one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=CLASS_NUM))
+	# one_hot_labels = tf.reshape(label_batch, [batch_size, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
+	return image_batch, label_batch
+
+
+def read():
+	train_file_path = os.path.join('../input-data/Segmentation', 'train_set.tfrecords')
 
 	train_image_filename_queue = tf.train.string_input_producer(
-		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=EPOCH_NUM, shuffle=True)
-	# train_images, train_labels = read_image_batch(train_image_filename_queue, 80)
-
-	# development_image_filename_queue = tf.train.string_input_producer(
-	# 	tf.train.match_filenames_once(development_file_path), num_epochs=1, shuffle=True)
-	# development_images, development_labels = read_image_batch(development_image_filename_queue, 5)
-
-	# test_image_filename_queue = tf.train.string_input_producer(
-	# 	tf.train.match_filenames_once(test_file_path), num_epochs=1, shuffle=True)
-
-	net = Unet()
-	net.set_up_unet(TRAIN_BATCH_SIZE)
-	net.train(train_image_filename_queue)
+		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=1, shuffle=True)
+	train_images, train_labels = read_image_batch(train_image_filename_queue, TRAIN_BATCH_SIZE)
+	with tf.Session() as sess:  # 开始一个会话
+		sess.run(tf.global_variables_initializer())
+		sess.run(tf.local_variables_initializer())
+		coord = tf.train.Coordinator()
+		threads = tf.train.start_queue_runners(coord=coord)
+		example, label = sess.run([train_images, train_labels])
+		coord.request_stop()
+		coord.join(threads)
+	print("Done reading")
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser()
-	# 数据地址
-	parser.add_argument(
-		'--data_dir', type=str, default='../input-data/Segmentation',
-		help='Directory for storing input data')
+	# write()
+	# write_2()
+	# read()
+	net = Unet()
+	net.set_up_unet(TRAIN_BATCH_SIZE)
 
-	# 模型保存地址
-	parser.add_argument(
-		'--model_dir', type=str, default='../output-data/models',
-		help='output model path')
-
-	# 模型保存地址
-	parser.add_argument(
-		'--tb_dir', type=str, default='../output-data/log',
-		help='TensorBoard log path')
-
-	FLAGS, _ = parser.parse_known_args()
-	# write_img_to_tfrecords()
-	main()
-
+	train_file_path = os.path.join('../input-data/Segmentation', 'train_set_temp.tfrecords')
+	train_image_filename_queue = tf.train.string_input_producer(
+		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=1, shuffle=True)
+	net.train(train_image_filename_queue)
