@@ -16,15 +16,15 @@ import tensorflow as tf
 import argparse
 import os
 # import keras
-INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL = 572, 572, 3
-OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_CHANNEL = 387, 387, 1
+INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL = 284, 284, 1
+OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_CHANNEL = 100, 100, 1
 EPOCH_NUM = 1
 TRAIN_BATCH_SIZE = 1
 DEVELOPMENT_BATCH_SIZE = 10
 TEST_BATCH_SIZE = 128
 EPS = 10e-5
 FLAGS = None
-CLASS_NUM = 21
+CLASS_NUM = 2
 '''
 类别名称     R G B
 background  0 0 0       背景
@@ -93,58 +93,92 @@ def convert_from_color_segmentation(image_3d=None):
 
 
 def write_img_to_tfrecords():
-	from skimage import io, transform
-	from PIL import Image
+	import cv2
+	# from skimage import io, transform
+	import glob
+	import numpy as np
+	train_set_size = 10000
+	development_set_size = 2000
+	path = glob.glob(os.path.join('/home/dufanxin/PycharmProjects/ImagePreprocess/outputdata', '*.JPEG'))
 	train_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'train_set.tfrecords'))  # 要生成的文件
-	# development_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'development_set.tfrecords'))
-	test_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'test_set.tfrecords'))  # 要生成的文件
-	file_queue = tf.train.string_input_producer(
-		string_tensor=tf.train.match_filenames_once(os.path.join(FLAGS.data_dir, 'ImageSets/train.txt')), num_epochs=1, shuffle=True)
-	reader = tf.TextLineReader()
-	key, value = reader.read(file_queue)
-	defaults = [['string']]
-	files_name = tf.decode_csv(records=value, record_defaults=defaults)
+	development_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'development_set.tfrecords'))
+	# test_set_writer = tf.python_io.TFRecordWriter(os.path.join(FLAGS.data_dir, 'test_set.tfrecords'))  # 要生成的文件
+	train_path = path[:10000]
+	development_path = path[10000:]
+	# print(len(path))
 
-	with tf.Session() as sess:
+	for index, file_path in enumerate(train_path):
+		train_image = cv2.imread(file_path)
+		# train_image = cv2.resize(src=train_image, dsize=(INPUT_IMG_WIDE, INPUT_IMG_HEIGHT))
+		sample_image = np.asarray(a=train_image[:, :, 0], dtype=np.uint8)
+		sample_image = cv2.resize(src=sample_image, dsize=(INPUT_IMG_WIDE, INPUT_IMG_HEIGHT))
+		label_image = np.asarray(a=train_image[:, :, 2], dtype=np.uint8)
+		label_image = cv2.resize(src=label_image, dsize=(OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT))
+		label_image[label_image <= 100] = 0
+		label_image[label_image > 100] = 1
+		# train_image = io.imread(file_path)
+		# train_image = transform.resize(train_image, (INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL))
+		# sample_image = train_image[:, :, 0]
+		# label_image = train_image[:, :, 2]
+		# label_image[label_image < 100] = 0
+		# label_image[label_image > 100] = 10
+		example = tf.train.Example(features=tf.train.Features(feature={
+			'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[label_image.tobytes()])),
+			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[sample_image.tobytes()]))
+		}))  # example对象对label和image数据进行封装
+		train_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		if index % 100 == 0:
+			print('Done train_set writing %.2f%%' % (index / train_set_size * 100))
+	train_set_writer.close()
+	print("Done train_set writing")
+
+	for index, file_path in enumerate(development_path):
+		development_image = cv2.imread(file_path)
+		# development_image = cv2.resize(src=development_image, dsize=(INPUT_IMG_WIDE, INPUT_IMG_HEIGHT))
+		sample_image = np.asarray(a=development_image[:, :, 0], dtype=np.uint8)
+		sample_image = cv2.resize(src=sample_image, dsize=(INPUT_IMG_WIDE, INPUT_IMG_HEIGHT))
+		label_image = np.asarray(development_image[:, :, 2], dtype=np.uint8)
+		label_image = cv2.resize(src=label_image, dsize=(OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT))
+		label_image[label_image <= 100] = 0
+		label_image[label_image > 100] = 10
+		# development_image = io.imread(file_path)
+		# development_image = transform.resize(development_image, (INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL))
+		# sample_image = development_image[:, :, 0]
+		# label_image = development_image[:, :, 2]
+		# label_image[label_image < 100] = 0
+		# label_image[label_image > 100] = 10
+		example = tf.train.Example(features=tf.train.Features(feature={
+			'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[label_image.tobytes()])),
+			'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[sample_image.tobytes()]))
+		}))  # example对象对label和image数据进行封装
+		development_set_writer.write(example.SerializeToString())  # 序列化为字符串
+		if index % 100 == 0:
+			print('Done development_set writing %.2f%%' % (index / development_set_size * 100))
+	development_set_writer.close()
+	print("Done development_set writing")
+
+
+def read_check_tfrecords():
+	import cv2
+	train_file_path = os.path.join('../input-data/Segmentation', 'train_set.tfrecords')
+	train_image_filename_queue = tf.train.string_input_producer(
+		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=1, shuffle=True)
+	train_images, train_labels = read_image(train_image_filename_queue)
+	one_hot_labels = tf.to_float(tf.one_hot(indices=train_labels, depth=CLASS_NUM))
+	with tf.Session() as sess:  # 开始一个会话
 		sess.run(tf.global_variables_initializer())
 		sess.run(tf.local_variables_initializer())
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
-		epoch = 1
-		try:
-			while not coord.should_stop():
-				# Run training steps or whatever
-				print('epoch ' + str(epoch))
-				file_name = sess.run(files_name)
-				train_img = Image.open(
-					os.path.join('../input-data/Segmentation', 'TrainImage/%s.jpg' % str(file_name[0], encoding='utf-8')))
-				train_img = train_img.resize((INPUT_IMG_HEIGHT, INPUT_IMG_WIDE))
-				# train_img_raw = train_img.tobytes()  # 将图片转化为二进制格式
-
-				label_img = io.imread(
-					os.path.join('../input-data/Segmentation', 'LabelImage/%s.png' % str(file_name[0], encoding='utf-8')))
-				label_img = transform.resize(label_img, (OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE, 3))
-				label_img = convert_from_color_segmentation(label_img) * 10
-				# io.imsave(fname=os.path.join('../input-data/Segmentation', 'Labels/%s.jpg' % str(file_name[0], encoding='utf-8')), arr=label_img)
-				# print(label_img.shape)
-				# label.tostring()
-
-				example = tf.train.Example(features=tf.train.Features(feature={
-					'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[label_img.tostring()])),
-					'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[train_img.tobytes()]))
-				}))  # example对象对label和image数据进行封装
-				train_set_writer.write(example.SerializeToString())  # 序列化为字符串
-				epoch += 1
-		except tf.errors.OutOfRangeError:
-			print('Done writing -- epoch limit reached')
-		finally:
-			# When done, ask the threads to stop.
-			print('image num is %d' % epoch)
-			coord.request_stop()
-		# coord.request_stop()
+		example, label = sess.run([train_images, train_labels])
+		example, label = sess.run([train_images, train_labels])
+		cv2.imshow('image', example)
+		cv2.imshow('lael', label * 100)
+		cv2.waitKey(0)
+		# print(sess.run(one_hot_labels))
+		coord.request_stop()
 		coord.join(threads)
-		# train_set_writer.close()
-	print("Done writing")
+	print("Done reading and checking")
 
 
 def read_image(file_queue):
@@ -160,12 +194,14 @@ def read_image(file_queue):
 
 	image = tf.decode_raw(features['image_raw'], tf.uint8)
 	# print('image ' + str(image))
-	image = tf.reshape(image, [INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, INPUT_IMG_CHANNEL])
+	image = tf.reshape(image, [INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL])
+	# image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+	# image = tf.image.resize_images(image, (IMG_HEIGHT, IMG_WIDE))
 	# image = tf.cast(image, tf.float32) * (1. / 255) - 0.5
 
 	label = tf.decode_raw(features['label'], tf.uint8)
 	# label = tf.cast(label, tf.int64)
-	label = tf.reshape(label, [OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
+	label = tf.reshape(label, [OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT])
 	# label = tf.decode_raw(features['image_raw'], tf.uint8)
 	# print(label)
 	# label = tf.reshape(label, shape=[1, 4])
@@ -180,9 +216,9 @@ def read_image_batch(file_queue, batch_size):
 	image_batch, label_batch = tf.train.shuffle_batch(
 		tensors=[img, label], batch_size=batch_size,
 		capacity=capacity, min_after_dequeue=min_after_dequeue)
-	# one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=CLASS_NUM))
+	one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=CLASS_NUM))
 	# one_hot_labels = tf.reshape(label_batch, [batch_size, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
-	return image_batch, label_batch
+	return image_batch, one_hot_labels
 
 
 class Unet:
@@ -243,15 +279,15 @@ class Unet:
 
 			# for softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
 			# using one-hot
-			# self.input_label = tf.placeholder(
-			# 	dtype=tf.float32, shape=[batch_size, OUTPUT_IMG_WIDE, OUTPUT_IMG_WIDE, CLASS_NUM], name='input_labels'
-			# )
+			self.input_label = tf.placeholder(
+				dtype=tf.float32, shape=[batch_size, OUTPUT_IMG_WIDE, OUTPUT_IMG_WIDE, CLASS_NUM], name='input_labels'
+			)
 
 			# for sparse_softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
 			# not using one-hot coding
-			self.input_label = tf.placeholder(
-				dtype=tf.int32, shape=[batch_size, OUTPUT_IMG_WIDE, OUTPUT_IMG_WIDE], name='input_labels'
-			)
+			# self.input_label = tf.placeholder(
+			# 	dtype=tf.int32, shape=[batch_size, OUTPUT_IMG_WIDE, OUTPUT_IMG_WIDE], name='input_labels'
+			# )
 			self.keep_prob = tf.placeholder(dtype=tf.float32, name='keep_prob')
 			self.lamb = tf.placeholder(dtype=tf.float32, name='lambda')
 
@@ -376,7 +412,8 @@ class Unet:
 			self.b[11] = self.init_b(shape=[512], name='b_11')
 			result_up = tf.nn.conv2d_transpose(
 				value=result_relu_2, filter=self.w[11],
-				output_shape=[batch_size, 56, 56, 512], strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
+				output_shape=[batch_size, 20, 20, 512],
+				strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
 			result_relu_3 = tf.nn.relu(tf.nn.bias_add(result_up, self.b[11], name='add_bias'), name='relu_3')
 
 		# layer 6
@@ -401,13 +438,15 @@ class Unet:
 				input=result_relu_1, filter=self.w[13],
 				strides=[1, 1, 1, 1], padding='VALID', name='conv_2')
 			result_relu_2 = tf.nn.relu(tf.nn.bias_add(result_conv_2, self.b[13], name='add_bias'), name='relu_2')
+			# print(result_relu_2.shape[1])
 
 			# up sample
 			self.w[14] = self.init_w(shape=[2, 2, 256, 512], name='w_11')
 			self.b[14] = self.init_b(shape=[256], name='b_11')
 			result_up = tf.nn.conv2d_transpose(
 				value=result_relu_2, filter=self.w[14],
-				output_shape=[batch_size, 104, 104, 256], strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
+				output_shape=[batch_size, 32, 32, 256],
+				strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
 			result_relu_3 = tf.nn.relu(tf.nn.bias_add(result_up, self.b[14], name='add_bias'), name='relu_3')
 
 		# layer 7
@@ -437,7 +476,8 @@ class Unet:
 			self.b[17] = self.init_b(shape=[128], name='b_11')
 			result_up = tf.nn.conv2d_transpose(
 				value=result_relu_2, filter=self.w[17],
-				output_shape=[batch_size, 200, 200, 128], strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
+				output_shape=[batch_size, 56, 56, 128],
+				strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
 			result_relu_3 = tf.nn.relu(tf.nn.bias_add(result_up, self.b[17], name='add_bias'), name='relu_3')
 
 		# layer 8
@@ -467,7 +507,8 @@ class Unet:
 			self.b[20] = self.init_b(shape=[64], name='b_11')
 			result_up = tf.nn.conv2d_transpose(
 				value=result_relu_2, filter=self.w[20],
-				output_shape=[batch_size, 392, 392, 64], strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
+				output_shape=[batch_size, 104, 104, 64],
+				strides=[1, 2, 2, 1], padding='VALID', name='Up_Sample')
 			result_relu_3 = tf.nn.relu(tf.nn.bias_add(result_up, self.b[20], name='add_bias'), name='relu_3')
 
 		# layer 9
@@ -492,24 +533,25 @@ class Unet:
 				strides=[1, 1, 1, 1], padding='VALID', name='conv_2')
 			result_relu_2 = tf.nn.relu(tf.nn.bias_add(result_conv_2, self.b[22], name='add_bias'), name='relu_2')
 
-			# convolution to [batch_size, IMG_WIDE, IMG_HEIGHT, CLASS_NUM]
-			self.w[23] = self.init_w(shape=[2, 2, 64, CLASS_NUM], name='w_11')
+			# convolution to [batch_size, OUTPIT_IMG_WIDE, OUTPUT_IMG_HEIGHT, CLASS_NUM]
+			self.w[23] = self.init_w(shape=[1, 1, 64, CLASS_NUM], name='w_11')
 			self.b[23] = self.init_b(shape=[CLASS_NUM], name='b_11')
 			result_conv_3 = tf.nn.conv2d(
 				input=result_relu_2, filter=self.w[23],
 				strides=[1, 1, 1, 1], padding='VALID', name='conv_3')
-			self.prediction = tf.nn.relu(tf.nn.bias_add(result_conv_3, self.b[23], name='add_bias'), name='relu_2')
+			self.prediction = tf.nn.bias_add(result_conv_3, self.b[23], name='add_bias')
 		# print(self.prediction)
 		# print(self.input_label)
 
 		# softmax loss
 		with tf.name_scope('softmax_loss'):
 			# using one-hot
-			# self.loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
+			self.loss = \
+				tf.nn.softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
 
 			# not using one-hot
-			self.loss = \
-				tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
+			# self.loss = \
+			# 	tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.input_label, logits=self.prediction, name='loss')
 			self.loss_mean = tf.reduce_mean(self.loss)
 			tf.add_to_collection(name='loss', value=self.loss_mean)
 			self.loss_all = tf.add_n(inputs=tf.get_collection(key='loss'))
@@ -517,10 +559,11 @@ class Unet:
 		# accuracy
 		with tf.name_scope('accuracy'):
 			# using one-hot
-			# self.correct_prediction = tf.equal(tf.argmax(self.prediction, 1), tf.argmax(self.input_label, 1))
+			self.correct_prediction = tf.equal(tf.argmax(self.prediction, axis=3), tf.argmax(self.input_label, axis=3))
 
 			# not using one-hot
-			self.correct_prediction = tf.equal(tf.argmax(input=self.prediction, axis=3, output_type=tf.int32), self.input_label)
+			# self.correct_prediction = \
+			# 	tf.equal(tf.argmax(input=self.prediction, axis=3, output_type=tf.int32), self.input_label)
 			self.correct_prediction = tf.cast(self.correct_prediction, tf.float32)
 			self.accuracy = tf.reduce_mean(self.correct_prediction)
 
@@ -632,5 +675,6 @@ if __name__ == '__main__':
 
 	FLAGS, _ = parser.parse_known_args()
 	# write_img_to_tfrecords()
+	# read_check_tfrecords()
 	main()
 

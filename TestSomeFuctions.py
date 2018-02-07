@@ -14,6 +14,7 @@
 '''
 import tensorflow as tf
 from PIL import Image
+import cv2
 import glob
 import os
 import numpy as np
@@ -25,9 +26,9 @@ import warnings
 # plt.imshow(img, cmap = 'binary')#黑白显示
 # plt.show()
 # img.show()
-INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL = 572, 572, 3
-OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_CHANNEL = 387, 387, 1
-CLASS_NUM, TRAIN_BATCH_SIZE = 21, 1
+CLASS_NUM, TRAIN_BATCH_SIZE = 2, 1
+INPUT_IMG_WIDE, INPUT_IMG_HEIGHT, INPUT_IMG_CHANNEL = 284, 284, 1
+OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_CHANNEL = 100, 100, 1
 
 
 def convert_from_color_segmentation(image_3d=None):
@@ -566,12 +567,13 @@ def read_image(file_queue):
 	image = tf.decode_raw(features['image_raw'], tf.uint8)
 	# print('image ' + str(type(image)))
 	# image = tf.reshape(image, [INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, 3])
-	image = tf.reshape(image, [INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, 3])
+	image = tf.reshape(image, [INPUT_IMG_HEIGHT, INPUT_IMG_WIDE, INPUT_IMG_CHANNEL])
 	# image = tf.cast(image, tf.float32) * (1. / 255) - 0.5
 
 	label = tf.decode_raw(features['label'], tf.uint8)
 	# label = tf.cast(features['label'], tf.int64)
 	label = tf.reshape(label, [OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
+	# label = tf.to_float(tf.one_hot(indices=label, depth=CLASS_NUM))
 	# label = tf.decode_raw(features['image_raw'], tf.uint8)
 	# print(label)
 	# label = tf.reshape(label, shape=[1, 4])
@@ -589,7 +591,7 @@ def read_image_batch(file_queue, batch_size):
 		tensors=[img, label], batch_size=batch_size,
 		capacity=capacity, min_after_dequeue=min_after_dequeue)
 	# image_batch, label_batch = img, label
-	# one_hot_labels = tf.to_float(tf.one_hot(indices=label_batch, depth=CLASS_NUM))
+	label_batch = tf.to_float(tf.one_hot(indices=label_batch, depth=CLASS_NUM))
 	# one_hot_labels = tf.reshape(label_batch, [batch_size, OUTPUT_IMG_HEIGHT, OUTPUT_IMG_WIDE])
 	return image_batch, label_batch
 
@@ -610,14 +612,56 @@ def read():
 		coord.join(threads)
 	print("Done reading")
 
+
+def test_softmax():
+	import cv2
+	# y =
+	# tf.Variable(initial_value=tf.random_normal(shape=[OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT, CLASS_NUM], dtype=tf.float32))
+	y = tf.constant(value=1, shape=[TRAIN_BATCH_SIZE, OUTPUT_IMG_WIDE, OUTPUT_IMG_HEIGHT], dtype=tf.uint8)
+	y = tf.to_float(tf.one_hot(indices=y, depth=CLASS_NUM))
+	train_file_path = os.path.join('../input-data/Segmentation', 'train_set.tfrecords')
+	train_image_filename_queue = tf.train.string_input_producer(
+		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=1, shuffle=True)
+	# train_images, train_labels = read_image(train_image_filename_queue)
+	train_images, train_labels = read_image_batch(train_image_filename_queue, TRAIN_BATCH_SIZE)
+	with tf.Session() as sess:  # 开始一个会话
+		sess.run(tf.global_variables_initializer())
+		sess.run(tf.local_variables_initializer())
+		coord = tf.train.Coordinator()
+		threads = tf.train.start_queue_runners(coord=coord)
+		example, label = sess.run([train_images, train_labels])
+		print(label.shape)
+		correct_prediction = tf.equal(tf.argmax(y, dimension=3), tf.argmax(label, dimension=3))
+		correct_prediction = tf.cast(correct_prediction, tf.float32)
+		cp_img = sess.run(tf.cast(correct_prediction, tf.uint8))[0] * 100
+		accuracy = tf.reduce_mean(correct_prediction)
+		reshape_pred = sess.run(tf.cast(x=tf.argmax(y, dimension=3), dtype=tf.uint8))[0] * 100
+		reshape_label = sess.run(tf.cast(x=tf.argmax(label, dimension=3), dtype=tf.uint8))[0] * 100
+		# cv2.imshow('img', example)
+		# cv2.imshow('label', sess.run(tf.argmax(label, axis=2) * 100))
+		cv2.imshow('label', reshape_label)
+		cv2.imshow('pred', reshape_pred)
+		cv2.imshow('cp_img', cp_img)
+		cv2.waitKey(0)
+		print(cp_img.shape)
+		print(sess.run(accuracy))
+		# print(sess.run(tf.argmax(label, axis=2)))
+		coord.request_stop()
+		coord.join(threads)
+	print("Done reading")
+
+
 if __name__ == '__main__':
+	# image = cv2.imread(os.path.join('../input-data/Segmentation', 'LabelImage/%s.png' % str(file_name, encoding='utf-8')))
+	# cv2.imshow('image', image)
+	test_softmax()
 	# write()
 	# write_2()
 	# read()
-	net = Unet()
-	net.set_up_unet(TRAIN_BATCH_SIZE)
-
-	train_file_path = os.path.join('../input-data/Segmentation', 'train_set_temp.tfrecords')
-	train_image_filename_queue = tf.train.string_input_producer(
-		string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=1, shuffle=True)
-	net.train(train_image_filename_queue)
+	# net = Unet()
+	# net.set_up_unet(TRAIN_BATCH_SIZE)
+	#
+	# train_file_path = os.path.join('../input-data/Segmentation', 'train_set_temp.tfrecords')
+	# train_image_filename_queue = tf.train.string_input_producer(
+	# 	string_tensor=tf.train.match_filenames_once(train_file_path), num_epochs=1, shuffle=True)
+	# net.train(train_image_filename_queue)
